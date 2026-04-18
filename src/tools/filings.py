@@ -1,12 +1,15 @@
+import warnings
 from typing import Any
 
 import httpx
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 EDGAR_BASE = "https://data.sec.gov"
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 HEADERS = {"User-Agent": "Financial Advisor MVP contact@example.com"}
 
-# Cache the ticker→CIK map for the process lifetime (avoids re-fetching on each call)
 _cik_map: dict[str, str] = {}
 
 
@@ -21,8 +24,23 @@ def _load_cik_map() -> dict[str, str]:
     return _cik_map
 
 
+def _fetch_filing_text(url: str, max_chars: int = 3000) -> str:
+    """Fetch and extract readable text from an SEC filing document."""
+    try:
+        resp = httpx.get(url, headers=HEADERS, timeout=15, follow_redirects=True)
+        if resp.status_code != 200:
+            return ""
+        soup = BeautifulSoup(resp.text, "lxml")
+        for tag in soup(["script", "style", "nav", "header", "footer", "table"]):
+            tag.decompose()
+        text = " ".join(soup.get_text(separator=" ").split())
+        return text[:max_chars]
+    except Exception:
+        return ""
+
+
 def get_latest_filing(ticker: str) -> dict[str, Any]:
-    """Fetch the most recent 10-K, 10-Q, or 8-K summary from SEC EDGAR."""
+    """Fetch the most recent 10-K, 10-Q, or 8-K from SEC EDGAR, with text for 8-Ks."""
     ticker = ticker.upper()
     try:
         cik_map = _load_cik_map()
@@ -46,24 +64,34 @@ def get_latest_filing(ticker: str) -> dict[str, Any]:
     acc_nums = filings.get("accessionNumber", [])
     descriptions = filings.get("primaryDocument", [])
 
+    # CIK without leading zeros for building document URLs
+    cik_int = str(int(cik))
+
     target_forms = {"10-K", "10-Q", "8-K"}
     for i, form in enumerate(forms):
         if form in target_forms:
             acc_clean = acc_nums[i].replace("-", "")
             doc = descriptions[i] if i < len(descriptions) else ""
             filing_url = (
-                f"https://www.sec.gov/Archives/edgar/full-index/"
-                f"{dates[i][:4]}/{dates[i][5:7]}/{acc_clean}/{doc}"
+                f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_clean}/{doc}"
                 if doc
                 else f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={form}&dateb=&owner=include&count=1"
             )
-            return {
+
+            result: dict[str, Any] = {
                 "company_name": data.get("name", ticker),
                 "form_type": form,
                 "filing_date": dates[i],
                 "accession_number": acc_nums[i],
                 "url": filing_url,
                 "edgar_page": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=&dateb=&owner=include&count=10",
+                "content": "",
             }
+
+            # For 8-Ks, fetch the actual text to expose material events
+            if form == "8-K" and doc and filing_url.startswith("https://www.sec.gov/Archives"):
+                result["content"] = _fetch_filing_text(filing_url)
+
+            return result
 
     return {"error": f"No recent 10-K, 10-Q, or 8-K found for {ticker}."}

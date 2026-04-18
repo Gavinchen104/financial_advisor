@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import os
 from pathlib import Path
@@ -9,7 +10,13 @@ from dotenv import load_dotenv
 
 from .tools.news import get_recent_news
 from .tools.filings import get_latest_filing
-from .tools.price import get_price_action, get_earnings_data
+from .tools.price import (
+    get_price_action,
+    get_earnings_data,
+    get_market_context,
+    get_analyst_data,
+    get_insider_transactions,
+)
 from .tools.brief_writer import parse_brief
 
 load_dotenv()
@@ -27,18 +34,44 @@ def run_agent(
 ) -> dict:
     ticker = ticker.strip().upper()
 
-    # Both modes use the same core data sources
-    news = get_recent_news(ticker, fetch_content=(mode == "enhanced"))
-    filing = get_latest_filing(ticker)
-    price = get_price_action(ticker)
-
     if mode == "enhanced":
-        earnings = get_earnings_data(ticker)
-        earnings_section = f"\n## Earnings & Fundamentals\n{json.dumps(earnings, indent=2)}\n"
+        # Fetch all data sources in parallel for lower latency
+        with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
+            f_news = executor.submit(get_recent_news, ticker, 7, True)
+            f_filing = executor.submit(get_latest_filing, ticker)
+            f_price = executor.submit(get_price_action, ticker)
+            f_earnings = executor.submit(get_earnings_data, ticker)
+            f_market = executor.submit(get_market_context, ticker)
+            f_analyst = executor.submit(get_analyst_data, ticker)
+            f_insider = executor.submit(get_insider_transactions, ticker)
+            news = f_news.result()
+            filing = f_filing.result()
+            price = f_price.result()
+            earnings = f_earnings.result()
+            market_ctx = f_market.result()
+            analyst = f_analyst.result()
+            insider = f_insider.result()
+
+        enhanced_sections = f"""
+## Earnings & Fundamentals
+{json.dumps(earnings, indent=2)}
+
+## Market Context (vs S&P 500 and Sector ETF)
+{json.dumps(market_ctx, indent=2)}
+
+## Analyst Consensus
+{json.dumps(analyst, indent=2)}
+
+## Insider Transactions
+{json.dumps(insider, indent=2)}
+"""
         search_note = "\nUse the Google Search tool if you need to verify or expand on any of the above."
         gemini_tools = [types.Tool(google_search=types.GoogleSearch())]
     else:
-        earnings_section = ""
+        news = get_recent_news(ticker, fetch_content=False)
+        filing = get_latest_filing(ticker)
+        price = get_price_action(ticker)
+        enhanced_sections = ""
         search_note = ""
         gemini_tools = []
 
@@ -54,7 +87,7 @@ Here is all the data you need:
 
 ## Price Action (last 7 days)
 {json.dumps(price, indent=2)}
-{earnings_section}{search_note}
+{enhanced_sections}{search_note}
 Now write the brief using the required format."""
 
     response = _client.models.generate_content(

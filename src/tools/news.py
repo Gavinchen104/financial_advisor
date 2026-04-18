@@ -36,14 +36,20 @@ def get_recent_news(ticker: str, days: int = 7, fetch_content: bool = True) -> l
         return []
 
     items = []
-    for item in news[:5]:
+    for item in news[:10]:
+        url = item.get("link", "")
+        # Skip S3 / CDN / non-public URLs that users can't open
+        if not url or "s3.amazonaws.com" in url or "s3-" in url or not url.startswith("http"):
+            continue
         items.append({
             "title": item.get("title", ""),
-            "url": item.get("link", ""),
+            "url": url,
             "source": item.get("publisher", ""),
             "published_at": item.get("providerPublishTime", ""),
             "content": "",
         })
+        if len(items) == 5:
+            break
 
     if fetch_content:
         urls = [item["url"] for item in items[:3]]
