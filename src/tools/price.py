@@ -80,6 +80,10 @@ def get_earnings_data(ticker: str) -> dict[str, Any]:
         "earnings_growth_yoy": info.get("earningsGrowth"),
         "profit_margin": info.get("profitMargins"),
         "next_earnings_date": None,
+        "days_until_earnings": None,
+        "last_earnings_date": None,
+        "days_since_last_earnings": None,
+        "earnings_window": "quiet",
         "recent_quarterly_eps": [],
         "source_url": _yf_url(ticker, "financials"),
     }
@@ -88,11 +92,29 @@ def get_earnings_data(ticker: str) -> dict[str, Any]:
         ed = t.earnings_dates
         if ed is not None and not ed.empty:
             import pandas as pd
-            future = ed[ed.index > pd.Timestamp.now(tz="UTC")]
+            now_ts = pd.Timestamp.now(tz="UTC")
+            today = now_ts.date()
+
+            future = ed[ed.index > now_ts].sort_index(ascending=True)
             if not future.empty:
-                result["next_earnings_date"] = str(future.index[-1].date())
+                next_date = future.index[0].date()
+                result["next_earnings_date"] = str(next_date)
+                result["days_until_earnings"] = (next_date - today).days
+
+            past = ed[ed.index <= now_ts].sort_index(ascending=False)
+            if not past.empty:
+                last_date = past.index[0].date()
+                result["last_earnings_date"] = str(last_date)
+                result["days_since_last_earnings"] = (today - last_date).days
     except Exception:
         pass
+
+    days_until = result["days_until_earnings"]
+    days_since = result["days_since_last_earnings"]
+    if days_until is not None and 0 <= days_until <= 7:
+        result["earnings_window"] = "pre_earnings"
+    elif days_since is not None and 0 <= days_since <= 3:
+        result["earnings_window"] = "post_earnings"
 
     try:
         ed = t.earnings_dates
