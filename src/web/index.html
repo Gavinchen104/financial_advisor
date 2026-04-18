@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Advisor — Stock Briefs for New Investors</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .prose h2 { font-size: 1rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.25rem; color: #111827; }
+    .prose p { margin-bottom: 0.75rem; color: #374151; line-height: 1.6; }
+    .prose em { color: #6b7280; font-style: normal; font-size: 0.8rem; }
+    .prose hr { margin: 1rem 0; border-color: #e5e7eb; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+  <div class="max-w-2xl mx-auto px-4 py-12">
+
+    <div class="mb-10">
+      <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Financial Advisor</h1>
+      <p class="text-gray-400 text-sm mt-1">Plain-English stock briefs for first-year investors</p>
+    </div>
+
+    <form id="brief-form" class="flex gap-2 mb-6">
+      <input
+        id="ticker-input"
+        type="text"
+        placeholder="Ticker (e.g. NVDA)"
+        maxlength="5"
+        autocomplete="off"
+        spellcheck="false"
+        class="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+      <button
+        type="submit"
+        id="submit-btn"
+        class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Get Brief
+      </button>
+    </form>
+
+    <div id="status" class="hidden text-sm text-gray-400 mb-4">
+      Generating brief — this takes up to 60 seconds...
+    </div>
+
+    <div
+      id="error"
+      class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4"
+    ></div>
+
+    <div
+      id="brief-output"
+      class="hidden bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-5 prose"
+    ></div>
+
+  </div>
+
+  <script>
+    const form = document.getElementById('brief-form');
+    const input = document.getElementById('ticker-input');
+    const btn = document.getElementById('submit-btn');
+    const status = document.getElementById('status');
+    const errDiv = document.getElementById('error');
+    const output = document.getElementById('brief-output');
+
+    input.addEventListener('input', () => {
+      input.value = input.value.toUpperCase().replace(/[^A-Z.]/g, '');
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const ticker = input.value.trim();
+      if (!ticker) return;
+
+      btn.disabled = true;
+      status.classList.remove('hidden');
+      errDiv.classList.add('hidden');
+      output.classList.add('hidden');
+      output.innerHTML = '';
+
+      try {
+        const resp = await fetch('/brief', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, experience_level: 'first_year' }),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
+          throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        output.innerHTML = marked.parse(data.full_brief);
+        output.classList.remove('hidden');
+      } catch (err) {
+        errDiv.textContent = err.message;
+        errDiv.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        status.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
