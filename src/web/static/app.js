@@ -730,6 +730,7 @@ async function loadBrief(ticker) {
     const r = await api('/brief', { method: 'POST', body: JSON.stringify({ ticker, experience_level: 'first_year' }) });
     meta.textContent = r.cached ? 'Served from cache (<4h old). Click Refresh for live generation.' : 'Generated just now.';
     body.innerHTML = marked.parse(r.full_brief);
+    if (typeof window.annotateGlossary === 'function') window.annotateGlossary(body);
     if (chip) chip.innerHTML = renderEarningsChip(r);
     if (risk) risk.innerHTML = renderRiskStats(r.risk_metrics);
   } catch (err) {
