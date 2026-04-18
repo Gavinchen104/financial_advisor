@@ -68,6 +68,8 @@
 
 * { box-sizing: border-box; }
 
+html { scroll-behavior: smooth; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -340,6 +342,122 @@ code, .mono { font-family: var(--font-mono); font-size: 0.88em; font-variant-num
 .hero h1 { font-size: 2.6rem; margin-bottom: 1rem; letter-spacing: -0.02em; }
 .hero p { color: var(--text-muted); font-size: 1.02rem; max-width: 540px; margin: 0 auto 2rem; }
 .hero-cta { display: flex; gap: 0.6rem; justify-content: center; }
+
+/* Sample brief on landing page */
+.sample-section { scroll-margin-top: 1.5rem; }
+.sample-section-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+.sample-brief {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  max-width: 720px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+.sample-brief-header {
+  padding: 1.4rem 1.8rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.sample-brief-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-family: var(--font-serif);
+}
+.sample-brief-title h2 { font-size: 1.4rem; margin: 0; }
+.sample-brief-title .ticker {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.sample-brief-move {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--up);
+}
+.sample-brief-meta {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  width: 100%;
+  letter-spacing: 0.02em;
+}
+.sample-brief-body { padding: 1.4rem 1.8rem; }
+.sample-brief-body h3 {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+.sample-brief-body section + section { margin-top: 1.2rem; }
+.sample-brief-body p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+.sample-brief-body .defn {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.sample-brief-body ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+.sample-brief-body ul a { color: var(--accent); }
+.sample-brief-footer {
+  padding: 1rem 1.8rem 1.4rem;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.sample-brief-disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-soft);
+  font-style: italic;
+  flex: 1 1 280px;
+}
+.sample-graph-wrap { max-width: 920px; margin: 2.75rem auto 0; }
+.sample-graph-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.6rem;
+  box-shadow: var(--shadow);
+}
+.sample-graph-card .graph-container { height: 380px; }
+.sample-graph-caption {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  max-width: 620px;
+  margin: 0.9rem auto 0;
+  line-height: 1.55;
+}
 
 /* Ticker tape — optional flourish for landing page */
 .tape {

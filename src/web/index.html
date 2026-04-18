@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@400;500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
+  <script src="https://d3js.org/d3.v7.min.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -32,20 +33,52 @@
       </div>
     </section>
 
-    <section id="demo" class="mt-4">
-      <div class="grid grid-3">
-        <div class="card">
-          <h3 class="card-title">What happened</h3>
-          <p class="text-muted text-sm">Factual, bullet-point summary of the past week's news, filings, and price action. No interpretation.</p>
+    <section id="demo" class="mt-4 sample-section">
+      <div class="sample-section-label">A sample brief — just like the one you'll get</div>
+      <article class="sample-brief">
+        <header class="sample-brief-header">
+          <div class="sample-brief-title">
+            <h2>NVIDIA</h2>
+            <span class="ticker">NVDA</span>
+          </div>
+          <div class="sample-brief-move">+4.2% · past 7 days</div>
+          <div class="sample-brief-meta">Educational example · not live data</div>
+        </header>
+
+        <div class="sample-brief-body">
+          <section>
+            <h3>What happened</h3>
+            <p>NVIDIA closed the week up 4.2%, touching a fresh intraday high after announcing deeper AI-chip partnerships with three major cloud providers at its GTC developer conference.</p>
+          </section>
+          <section>
+            <h3>Why the price moved</h3>
+            <p>Management raised data-center revenue guidance for the coming quarter, citing continued demand for its Blackwell-generation GPUs from hyperscalers <span class="defn">(large cloud providers like AWS, Azure, and Google Cloud)</span> [1]. Most analysts responded with upward price-target revisions, though a few flagged valuation concerns at a forward P/E <span class="defn">(price-to-earnings ratio based on expected future profits)</span> near 36 [2].</p>
+          </section>
+          <section>
+            <h3>What it means for a first-year investor</h3>
+            <p>Moves like this — several percent in a week on forward-looking guidance — are typical for large-cap names at the center of a major theme like AI. The stock's day-to-day price tends to track investor expectations about future AI-hardware demand more than today's earnings number.</p>
+          </section>
+          <section>
+            <h3>Sources</h3>
+            <ul>
+              <li><a href="https://www.nvidia.com/gtc/" target="_blank" rel="noopener">NVIDIA GTC keynote announcement</a></li>
+              <li><a href="https://www.marketwatch.com/investing/stock/nvda/analystestimates" target="_blank" rel="noopener">Analyst revisions via MarketWatch</a></li>
+            </ul>
+          </section>
         </div>
-        <div class="card">
-          <h3 class="card-title">Why it moved</h3>
-          <p class="text-muted text-sm">Cited analysis drawing from earnings, analyst consensus, insider activity, and knowledge-graph context.</p>
+
+        <footer class="sample-brief-footer">
+          <span class="sample-brief-disclaimer">This is educational information, not investment advice. Stockify does not recommend buying or selling any security.</span>
+          <a href="#" class="btn btn-primary btn-sm" id="sample-cta">Generate one for any ticker →</a>
+        </footer>
+      </article>
+
+      <div class="sample-graph-wrap">
+        <div class="sample-section-label">Knowledge graph · how this stock connects to the rest of the market</div>
+        <div class="sample-graph-card">
+          <div class="graph-container" id="sample-graph"></div>
         </div>
-        <div class="card">
-          <h3 class="card-title">What it means</h3>
-          <p class="text-muted text-sm">Plain English takeaway — is this normal volatility, a material change, or sector-wide? Never a recommendation.</p>
-        </div>
+        <p class="sample-graph-caption">NVDA sits at the center of AI-hardware demand. Its price moves with its suppliers (chip fabs), customers (cloud providers), competitors, and macro factors — all shown at a glance, with 7-day moves.</p>
       </div>
     </section>
 
@@ -129,8 +162,124 @@
     document.getElementById('open-login').addEventListener('click', e => { e.preventDefault(); openAuth('login'); });
     document.getElementById('open-signup').addEventListener('click', e => { e.preventDefault(); openAuth('signup'); });
     document.getElementById('hero-cta').addEventListener('click', e => { e.preventDefault(); openAuth('signup'); });
+    document.getElementById('sample-cta').addEventListener('click', e => { e.preventDefault(); openAuth('signup'); });
     switchLink.addEventListener('click', e => { e.preventDefault(); openAuth(authMode === 'login' ? 'signup' : 'login'); });
     modal.addEventListener('click', e => { if (e.target === modal) closeAuth(); });
+
+    // ---------- Sample knowledge graph (D3) ----------
+    const SAMPLE_GRAPH = {
+      ticker: 'NVDA',
+      competitors: [
+        { ticker: 'AMD',  name: 'Advanced Micro Devices', pct_change_7d: 2.1 },
+        { ticker: 'INTC', name: 'Intel',                  pct_change_7d: -1.4 },
+        { ticker: 'AVGO', name: 'Broadcom',               pct_change_7d: 3.3 },
+        { ticker: 'QCOM', name: 'Qualcomm',               pct_change_7d: 0.8 },
+        { ticker: 'MU',   name: 'Micron Technology',      pct_change_7d: 1.6 },
+      ],
+      key_suppliers: [
+        { ticker: 'TSM',  name: 'Taiwan Semiconductor',   pct_change_7d: 2.9 },
+        { ticker: 'ASML', name: 'ASML Holding',           pct_change_7d: 1.2 },
+      ],
+      key_customers: [
+        { ticker: 'MSFT', name: 'Microsoft',              pct_change_7d: 1.0 },
+        { ticker: 'META', name: 'Meta Platforms',         pct_change_7d: 2.5 },
+        { ticker: 'GOOGL',name: 'Alphabet',               pct_change_7d: 0.6 },
+        { ticker: 'AMZN', name: 'Amazon',                 pct_change_7d: -0.9 },
+      ],
+      macro_factors: [
+        { factor_id: 'tnx', factor_name: '10Y Yield',      pct_change_7d: 0.3 },
+        { factor_id: 'sox', factor_name: 'Semi Index',     pct_change_7d: 2.4 },
+      ],
+    };
+
+    function drawSampleGraph() {
+      if (typeof d3 === 'undefined') return;
+      const container = document.getElementById('sample-graph');
+      if (!container) return;
+      container.innerHTML = '';
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 380;
+      const ctx = SAMPLE_GRAPH;
+
+      const colorMap = {
+        competes_with: '#c92a2a', supplies_to: '#0d8f5c',
+        customer_of: '#0a3d62', macro_sensitivity: '#c89f3c',
+      };
+      const groupColor = {
+        self: 'var(--accent)', competitor: '#c92a2a',
+        supplier: '#0d8f5c', customer: '#0a3d62', macro: '#c89f3c',
+      };
+
+      const nodes = [{ id: ctx.ticker, label: ctx.ticker, group: 'self', size: 26 }];
+      const links = [];
+      ctx.competitors.forEach(c => {
+        nodes.push({ id: c.ticker, label: c.ticker, group: 'competitor', size: 13, pct: c.pct_change_7d, name: c.name });
+        links.push({ source: ctx.ticker, target: c.ticker, type: 'competes_with' });
+      });
+      ctx.key_suppliers.forEach(s => {
+        nodes.push({ id: s.ticker, label: s.ticker, group: 'supplier', size: 13, pct: s.pct_change_7d, name: s.name });
+        links.push({ source: s.ticker, target: ctx.ticker, type: 'supplies_to' });
+      });
+      ctx.key_customers.forEach(c => {
+        nodes.push({ id: c.ticker, label: c.ticker, group: 'customer', size: 13, pct: c.pct_change_7d, name: c.name });
+        links.push({ source: ctx.ticker, target: c.ticker, type: 'customer_of' });
+      });
+      ctx.macro_factors.forEach(m => {
+        const mid = 'M:' + m.factor_id;
+        nodes.push({ id: mid, label: m.factor_name, group: 'macro', size: 11, pct: m.pct_change_7d, isMacro: true });
+        links.push({ source: ctx.ticker, target: mid, type: 'macro_sensitivity' });
+      });
+
+      const svg = d3.select(container).append('svg')
+        .attr('width', width).attr('height', height).attr('viewBox', [0, 0, width, height]);
+      d3.select(container).append('div').attr('class', 'graph-legend').html(`
+        <div><span class="graph-legend-dot" style="background:#c92a2a"></span>Competitor</div>
+        <div><span class="graph-legend-dot" style="background:#0d8f5c"></span>Supplier</div>
+        <div><span class="graph-legend-dot" style="background:#0a3d62"></span>Customer</div>
+        <div><span class="graph-legend-dot" style="background:#c89f3c"></span>Macro factor</div>
+      `);
+
+      const sim = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(95))
+        .force('charge', d3.forceManyBody().strength(-220))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => d.size + 6));
+
+      const link = svg.append('g').attr('stroke-opacity', 0.55).selectAll('line')
+        .data(links).join('line')
+        .attr('stroke', d => colorMap[d.type] || '#999').attr('stroke-width', 1.4);
+
+      const node = svg.append('g').selectAll('g').data(nodes).join('g')
+        .style('cursor', d => d.group === 'self' ? 'default' : 'pointer')
+        .on('click', (_, d) => { if (d.group !== 'self') openAuth('signup'); });
+
+      node.append('circle')
+        .attr('r', d => d.size).attr('fill', d => groupColor[d.group])
+        .attr('stroke', 'var(--bg)').attr('stroke-width', 2.5);
+      node.append('text').text(d => d.label)
+        .attr('text-anchor', 'middle').attr('dy', d => d.size + 12)
+        .attr('fill', 'var(--text)')
+        .attr('font-size', d => d.group === 'self' ? 12 : 10)
+        .attr('font-family', 'var(--font-mono)')
+        .attr('font-weight', d => d.group === 'self' ? 600 : 400);
+      node.append('text')
+        .text(d => (d.pct != null) ? `${d.pct > 0 ? '+' : ''}${d.pct.toFixed(1)}%` : '')
+        .attr('text-anchor', 'middle').attr('dy', 3.5)
+        .attr('fill', 'white').attr('font-size', 9)
+        .attr('font-family', 'var(--font-mono)').attr('font-weight', 600);
+      node.append('title').text(d => d.name ? `${d.id} — ${d.name} (click to sign up)` : d.label);
+
+      sim.on('tick', () => {
+        link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+      });
+    }
+
+    // D3 is loaded with `defer`, so it may arrive after this script runs inline.
+    if (typeof d3 !== 'undefined') drawSampleGraph();
+    else window.addEventListener('load', drawSampleGraph);
+    window.addEventListener('resize', () => { clearTimeout(window._gr); window._gr = setTimeout(drawSampleGraph, 150); });
 
     document.getElementById('auth-form').addEventListener('submit', async e => {
       e.preventDefault();
