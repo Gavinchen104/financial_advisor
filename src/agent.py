@@ -20,6 +20,7 @@ from .tools.price import (
     get_valuation_context,
     get_technical_levels,
 )
+from .tools.context import get_knowledge_context
 from .tools.brief_writer import parse_brief
 
 load_dotenv()
@@ -58,6 +59,7 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
             f_balance = executor.submit(get_balance_sheet, ticker)
             f_valuation = executor.submit(get_valuation_context, ticker)
             f_technical = executor.submit(get_technical_levels, ticker)
+            f_knowledge = executor.submit(get_knowledge_context, ticker)
             news = f_news.result()
             filing = f_filing.result()
             price = f_price.result()
@@ -68,6 +70,7 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
             balance = f_balance.result()
             valuation = f_valuation.result()
             technical = f_technical.result()
+            knowledge = f_knowledge.result()
 
         enhanced_sections = f"""
 ## Earnings & Fundamentals
@@ -90,6 +93,9 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
 
 ## Technical Levels
 {json.dumps(technical, indent=2)}
+
+## Knowledge Graph Context (Related Companies & Macro Factors)
+{json.dumps(knowledge, indent=2)}
 """
         gemini_tools = [types.Tool(google_search=types.GoogleSearch())]
 

@@ -28,85 +28,110 @@ This file gives Claude Code the context it needs to work productively in this re
 ## Architecture
 
 ```
-dinodigest/
-├── CLAUDE.md                  # this file
-├── README.md                  # setup + run instructions
-├── pyproject.toml             # deps via uv or poetry
-├── .env.example               # required env vars, no secrets
+financial_advisor/
+├── CLAUDE.md                       # this file
+├── README.md                       # setup + run instructions
+├── pyproject.toml                  # deps via uv
+├── .env.example                    # required env vars, no secrets
 ├── src/
-│   ├── agent.py               # main agent loop using Claude Agent SDK
+│   ├── agent.py                    # orchestrator: parallel fetch → single Gemini call
+│   ├── api.py                      # FastAPI app, one endpoint: POST /brief
 │   ├── tools/
-│   │   ├── __init__.py
-│   │   ├── news.py            # fetch recent news for a ticker
-│   │   ├── filings.py         # fetch latest SEC filing (10-K/10-Q/8-K)
-│   │   ├── price.py           # fetch recent price action
-│   │   └── brief_writer.py    # format the final 3-layer brief
+│   │   ├── news.py                 # recent news (headlines + body text)
+│   │   ├── filings.py              # latest SEC 10-K/10-Q/8-K (8-Ks include extracted text)
+│   │   ├── price.py                # price, earnings, market context, analyst, insider,
+│   │   │                           # balance sheet, valuation, technical levels
+│   │   ├── context.py              # knowledge graph → live 7-day perf for related tickers
+│   │   └── brief_writer.py         # parse Gemini markdown into structured JSON
 │   ├── prompts/
-│   │   ├── system.md          # agent system prompt
-│   │   └── brief_template.md  # output structure
-│   ├── api.py                 # FastAPI app, one endpoint: POST /brief
+│   │   ├── system.md               # system prompt (tone + how-to-use-data rules)
+│   │   └── brief_template.md       # output structure
+│   ├── knowledge_graph/
+│   │   ├── graph.py                # KnowledgeGraph loader + query API (singleton)
+│   │   ├── _relationships.py       # curated supplier/customer/competitor EDGES
+│   │   ├── _macro.py               # MACRO_FACTORS + sector/company macro sensitivity
+│   │   └── data/sp500_graph.json   # compiled graph (checked in)
 │   └── web/
-│       └── index.html         # single-page UI, vanilla JS, calls /brief
-└── scripts/
-    └── smoke_test.py          # runs the agent on 3 known tickers, prints output
+│       └── index.html              # single-page UI, vanilla JS, calls /brief
+├── scripts/
+│   ├── smoke_test.py               # runs the agent on 3 known tickers
+│   └── build_knowledge_graph.py    # rebuilds sp500_graph.json from S&P 500 + curated edges
+└── logs/
+    └── briefs.jsonl                # append-only request log (ts, ticker, experience_level)
 ```
 
 ## Stack
 
 - **Python 3.11+**, FastAPI, uv for dep management
-- **Anthropic Claude** via the Agent SDK (`claude-agent-sdk`) — use `claude-sonnet-4-5` or latest Sonnet
+- **LLM:** Google Gemini via `google-genai` — `gemini-2.5-flash`, with the `GoogleSearch` tool enabled for verification. (We started on Claude but switched to Gemini for the built-in Search tool and cost.)
 - **Data sources:**
-  - News: web search via Anthropic's web search tool OR a free tier API (NewsAPI, Finnhub free tier)
+  - News: web scraping via `httpx` + `beautifulsoup4` / `lxml`
   - Filings: SEC EDGAR (free, no key) — `https://data.sec.gov/submissions/CIK{cik}.json`
-  - Prices: Yahoo Finance via `yfinance` library (no key, good enough for MVP)
+  - Prices + fundamentals + analyst + insider + balance sheet + valuation + technicals: `yfinance`
+  - Knowledge graph: curated JSON compiled from S&P 500 constituents + hand-written supplier/customer/competitor/macro edges
 - **Frontend:** one HTML file, vanilla JS fetch, Tailwind via CDN. No build step.
+
+Env var required: `GEMINI_API_KEY`.
 
 If you're considering adding a dependency, ask first. We're keeping the surface area small.
 
 ## Agent design
 
-The agent uses tool use in a loop. System prompt lives in `src/prompts/system.md`. Rough shape:
+The agent is **not** a tool-calling loop. It's an orchestrator:
 
-1. User submits `{ticker: "NVDA", experience_level: "first_year"}` to `POST /brief`
-2. Agent is given the request and these tools:
-   - `get_recent_news(ticker, days=7)` → list of headlines + snippets + URLs
-   - `get_latest_filing(ticker)` → most recent 10-K/10-Q/8-K summary + URL
-   - `get_price_action(ticker, days=7)` → price changes, volume, notable moves
-3. Agent decides which tools to call (usually all three, but let it decide)
-4. Agent writes the brief using the 3-layer template
-5. API returns structured JSON: `{what_happened, why_moved, what_it_means, sources: [...]}`
+1. User submits `{ticker, experience_level}` to `POST /brief`
+2. `agent.run_agent` checks that the ticker has price data, then fans out 11 data fetches in parallel via a `ThreadPoolExecutor`:
+   - `get_recent_news`, `get_latest_filing`, `get_price_action`, `get_earnings_data`, `get_market_context`, `get_analyst_data`, `get_insider_transactions`, `get_balance_sheet`, `get_valuation_context`, `get_technical_levels`, `get_knowledge_context`
+3. All results are serialized into a single user message and sent to Gemini along with the system prompt
+4. Gemini has the `GoogleSearch` tool available to verify or expand anything
+5. `parse_brief` splits the response into `{what_happened, why_moved, what_it_means, sources_text, full_brief, disclaimer}` and the API returns it
 
-Keep the tool surface small. If the agent "needs" a fourth tool, push back — we probably don't need it for MVP.
+If a ticker has no price data (invalid/delisted), the agent skips the enhanced fetches, disables Google Search, and lets Gemini write a graceful "data unavailable" brief.
+
+If you're thinking of adding another data source, ask first — the prompt is already dense.
+
+## Knowledge graph
+
+`src/knowledge_graph/` holds a compiled graph of S&P 500 companies plus curated non-S&P external nodes (TSM, ASML, NVO, etc.). Edges are three types:
+
+- `competes_with` — auto-generated from shared GICS sub-industry (weight 0.5) + curated overrides with higher weights
+- `supplies_to` — hand-curated supplier → customer edges
+- `macro_sensitivity` — sector-default sensitivities (e.g., Energy ↔ crude oil) plus company-specific overrides
+
+At request time, `get_knowledge_context(ticker)` pulls the top competitors/suppliers/customers/macro factors from the graph and enriches each with a live 7-day `pct_change` from yfinance. The system prompt instructs Gemini to only mention relationships where the move is meaningful (>2%) and where it helps explain the week's price action.
+
+Rebuild with: `uv run python scripts/build_knowledge_graph.py`
 
 ## Output format — the 3-layer brief
 
-Every brief must have exactly these sections. The prompt enforces this.
+Every brief must have exactly these sections. The system prompt enforces this.
 
 ```
 ## What happened
 1–2 sentences. Factual. No interpretation.
 
 ## Why the price moved
-2–3 sentences. Must cite at least one primary source (filing, earnings call, verified news).
-Inline citations like [1], [2]. Sources list at the end.
+2–3 sentences. Must cite at least one primary source. Inline citations [1], [2].
 
 ## What it means for a first-year investor
-1–2 sentences. Plain English. Contextualize — is this normal volatility, a
-material business change, a sector-wide move? Never recommend action.
-If a technical term appears, define it inline in parentheses.
+1–2 sentences. Plain English. Contextualize — normal volatility, material
+business change, sector-wide move? Never recommend action.
+Define technical terms inline in parentheses.
 
 ## Sources
-[1] Title — URL
-[2] Title — URL
+- [Title of source 1](https://full-url-here)
+- [Title of source 2](https://full-url-here)
 ```
 
-## Voice and tone rules (enforce in the system prompt)
+Sources must be proper markdown links `[Title](URL)` — never bare URLs. Every input section has a `source_url` field; Gemini is instructed to use those exact URLs and never fabricate.
 
-- Plain English. If a term like "EPS" or "guidance" appears, define it inline the first time.
-- Never use: "buy", "sell", "hold", "strong buy", "price target", "should", "recommend"
-- Okay to use: "tends to", "historically", "one way to think about this", "some investors view"
-- No hype. No FOMO language. No emojis. No exclamation marks.
-- If the agent doesn't have enough info to answer a layer confidently, it says so explicitly rather than making things up.
+## Voice and tone rules (enforced in system prompt)
+
+- Plain English. Define terms inline on first use: "EPS (earnings per share)", "P/E (price divided by annual earnings)".
+- Forbidden: "buy", "sell", "hold", "strong buy", "price target", "should", "recommend", "must", "need to"
+- Acceptable: "tends to", "historically", "one way to think about this", "some investors view"
+- No hype, no FOMO, no emojis, no exclamation marks.
+- If a section can't be answered confidently, say so — never invent facts.
 
 ## Disclaimers (non-negotiable, auto-appended to every brief)
 
@@ -124,13 +149,13 @@ uv sync
 
 # set env
 cp .env.example .env
-# add ANTHROPIC_API_KEY
+# add GEMINI_API_KEY
 
-# run API
+# (one-time) build the knowledge graph
+uv run python scripts/build_knowledge_graph.py
+
+# run API (serves frontend at /)
 uv run uvicorn src.api:app --reload
-
-# open frontend
-open src/web/index.html  # or serve via the FastAPI app at /
 
 # smoke test
 uv run python scripts/smoke_test.py
@@ -146,20 +171,21 @@ uv run python scripts/smoke_test.py
 
 ## What "done" looks like for MVP
 
-- [ ] `POST /brief` returns a valid 3-layer brief for any real US ticker in <60s
-- [ ] Frontend has a ticker input, a submit button, and renders the brief as markdown
-- [ ] Smoke test passes on NVDA, KO, and handles ZZZZ gracefully
-- [ ] Disclaimer appears on every brief
-- [ ] README tells a new person how to run it in <5 minutes
+- [x] `POST /brief` returns a valid 3-layer brief for any real US ticker in <60s
+- [x] Frontend has a ticker input, a submit button, and renders the brief as markdown
+- [x] Smoke test passes on NVDA, KO, and handles ZZZZ gracefully
+- [x] Disclaimer appears on every brief
+- [x] README tells a new person how to run it in <5 minutes
 
 That's it. If you're adding more, you're building the wrong thing.
 
 ## Things Claude Code should ask before doing
 
 - Adding a new dependency
-- Adding a new tool to the agent
-- Changing the output schema
-- Adding any form of persistence beyond a JSON file
+- Adding a new data-fetch tool to the parallel fan-out
+- Changing the output schema (`BriefResponse` in `api.py`)
+- Adding any form of persistence beyond JSONL logs
+- Modifying the knowledge graph schema or rebuilding `sp500_graph.json`
 - Touching anything auth/payment/email related (we said no)
 
 ## Things Claude Code should just do
@@ -169,18 +195,19 @@ That's it. If you're adding more, you're building the wrong thing.
 - Refactor within a file
 - Add inline documentation
 - Improve error handling and graceful failures
-- Write the smoke test
+- Keep the smoke test passing
 
 ## Known limitations we're accepting for MVP
 
-- No rate limiting — this runs locally or on a cheap VPS, fine for <100 users
-- No caching — every request hits the APIs fresh
-- Yahoo Finance (`yfinance`) is unofficial and occasionally flaky — acceptable for MVP
+- No rate limiting — runs locally or on a cheap VPS, fine for <100 users
+- No caching per request — every brief re-fetches (knowledge graph itself is loaded once as a module singleton)
+- Yahoo Finance (`yfinance`) is unofficial and occasionally flaky — acceptable
 - SEC EDGAR has a 10 req/sec limit — fine for our volume
 - No support for non-US tickers
+- Knowledge graph only covers S&P 500 + a handful of curated externals; tickers outside that set get `{"error": "... not found in knowledge graph"}` and the brief is written without that context
 
 ## Current open questions (update as we learn)
 
 - Should the agent try to detect earnings weeks and handle them differently? (Probably yes, but post-MVP)
 - Do we return markdown or rendered HTML from the API? (Decision: markdown, frontend renders)
-- Do we log briefs for later review/eval? (Decision: yes, append-only JSONL in `/logs`, no PII)
+- Do we log briefs for later review/eval? (Decision: yes, append-only JSONL in `/logs`, no PII — currently logging only ts/ticker/experience_level, not the brief body)
