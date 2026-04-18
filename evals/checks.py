@@ -80,20 +80,21 @@ def check_sources_are_markdown_links(brief: dict) -> list[str]:
 
 
 def check_citations_resolve(brief: dict) -> list[str]:
-    """If the body uses [1], [2]-style citations, each number must exist in sources."""
+    """If body uses [N]-style citations, there must be at least N source entries
+    (the source list is a bullet list, not numbered, so we check count not number)."""
     body = (
         brief.get("what_happened", "") + "\n" +
         brief.get("why_moved", "") + "\n" +
         brief.get("what_it_means", "")
     )
     sources = brief.get("sources_text", "")
-    cited = set(_CITATION_RE.findall(body))
+    cited = _CITATION_RE.findall(body)
     if not cited:
-        return []  # citations are optional if sources are inline-linked
-    source_nums = set(_CITATION_RE.findall(sources))
-    unresolved = cited - source_nums
-    if unresolved:
-        return [f"citations [{','.join(sorted(unresolved))}] have no matching source entry"]
+        return []
+    max_cited = max(int(n) for n in cited)
+    source_count = len([l for l in sources.splitlines() if _MD_LINK_RE.search(l)])
+    if max_cited > source_count:
+        return [f"body cites [{max_cited}] but only {source_count} source entries exist"]
     return []
 
 

@@ -66,6 +66,11 @@ class BriefResponse(BaseModel):
     full_brief: str
     disclaimer: str
     cached: bool = False
+    earnings_window: str = "quiet"
+    days_until_earnings: int | None = None
+    days_since_last_earnings: int | None = None
+    next_earnings_date: str | None = None
+    last_earnings_date: str | None = None
 
 
 # ---------- helpers ----------

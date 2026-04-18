@@ -483,7 +483,10 @@ async function renderTicker(main, rawTicker) {
     <div class="grid grid-2">
       <div>
         <div class="card mb-3">
-          <h3 class="card-title">Brief</h3>
+          <div class="flex items-center justify-between gap-1 mb-1" style="flex-wrap: wrap;">
+            <h3 class="card-title" style="margin-bottom:0;">Brief</h3>
+            <div id="earnings-chip"></div>
+          </div>
           <div class="card-subtitle" id="brief-meta">Generating…</div>
           <div id="brief-body" class="prose"><div class="loading"><span class="spinner"></span>Brief is generating. This takes 30–60 seconds.</div></div>
         </div>
@@ -546,14 +549,32 @@ async function loadContext(ticker) {
 async function loadBrief(ticker) {
   const meta = document.getElementById('brief-meta');
   const body = document.getElementById('brief-body');
+  const chip = document.getElementById('earnings-chip');
   try {
     const r = await api('/brief', { method: 'POST', body: JSON.stringify({ ticker, experience_level: 'first_year' }) });
     meta.textContent = r.cached ? 'Served from cache (<4h old). Click Refresh for live generation.' : 'Generated just now.';
     body.innerHTML = marked.parse(r.full_brief);
+    if (chip) chip.innerHTML = renderEarningsChip(r);
   } catch (err) {
     body.innerHTML = `<div class="banner banner-error">${escapeHtml(err.message)}</div>`;
     meta.textContent = '';
+    if (chip) chip.innerHTML = '';
   }
+}
+
+function renderEarningsChip(r) {
+  if (r.earnings_window === 'pre_earnings') {
+    const d = r.days_until_earnings;
+    const when = d === 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`;
+    const date = r.next_earnings_date ? ` · ${r.next_earnings_date}` : '';
+    return `<span class="chip chip-lg chip-warn" title="Stock may see higher-than-usual price swings before and after the report.">⏱ Earnings ${when}${date}</span>`;
+  }
+  if (r.earnings_window === 'post_earnings') {
+    const d = r.days_since_last_earnings;
+    const when = d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
+    return `<span class="chip chip-lg chip-accent" title="Most recent earnings report — the brief leads with beat/miss framing.">📊 Reported ${when}</span>`;
+  }
+  return '';
 }
 
 // ---------------------- D3 Knowledge Graph ----------------------
@@ -568,11 +589,11 @@ function drawGraph(ctx) {
   const links = [];
 
   const colorMap = {
-    competes_with: '#c96442',
-    supplies_to: '#3b8265',
-    supplied_by: '#3b8265',
-    customer_of: '#6978c9',
-    macro_sensitivity: '#b68b2b',
+    competes_with: '#c92a2a',
+    supplies_to: '#0d8f5c',
+    supplied_by: '#0d8f5c',
+    customer_of: '#0a3d62',
+    macro_sensitivity: '#c89f3c',
   };
 
   (ctx.competitors || []).slice(0, 5).forEach(c => {
@@ -601,10 +622,10 @@ function drawGraph(ctx) {
     .attr('width', width).attr('height', height).attr('viewBox', [0, 0, width, height]);
 
   const legend = d3.select(container).append('div').attr('class', 'graph-legend').html(`
-    <div><span class="graph-legend-dot" style="background:#c96442"></span>Competitor</div>
-    <div><span class="graph-legend-dot" style="background:#3b8265"></span>Supplier → Customer</div>
-    <div><span class="graph-legend-dot" style="background:#6978c9"></span>Customer of</div>
-    <div><span class="graph-legend-dot" style="background:#b68b2b"></span>Macro factor</div>
+    <div><span class="graph-legend-dot" style="background:#c92a2a"></span>Competitor</div>
+    <div><span class="graph-legend-dot" style="background:#0d8f5c"></span>Supplier → Customer</div>
+    <div><span class="graph-legend-dot" style="background:#0a3d62"></span>Customer of</div>
+    <div><span class="graph-legend-dot" style="background:#c89f3c"></span>Macro factor</div>
   `);
 
   const simulation = d3.forceSimulation(nodes)
@@ -635,10 +656,10 @@ function drawGraph(ctx) {
     .attr('r', d => d.size)
     .attr('fill', d => d.color || {
       self: 'var(--accent)',
-      competitor: '#c96442',
-      supplier: '#3b8265',
-      customer: '#6978c9',
-      macro: '#b68b2b',
+      competitor: '#c92a2a',
+      supplier: '#0d8f5c',
+      customer: '#0a3d62',
+      macro: '#c89f3c',
     }[d.group])
     .attr('stroke', 'var(--bg)')
     .attr('stroke-width', 2.5);

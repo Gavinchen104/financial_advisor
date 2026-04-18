@@ -45,6 +45,7 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
         news = get_recent_news(ticker, fetch_content=False)
         filing = get_latest_filing(ticker)
         price = {"error": f"No price data found for {ticker}. It may be an invalid or delisted ticker."}
+        earnings = {}
         enhanced_sections = ""
         gemini_tools = []
     else:
@@ -125,4 +126,9 @@ Now write the brief using the required format."""
     )
 
     result = parse_brief(response.text, ticker)
+    result["earnings_window"] = earnings.get("earnings_window", "quiet") or "quiet"
+    result["days_until_earnings"] = earnings.get("days_until_earnings")
+    result["days_since_last_earnings"] = earnings.get("days_since_last_earnings")
+    result["next_earnings_date"] = earnings.get("next_earnings_date")
+    result["last_earnings_date"] = earnings.get("last_earnings_date")
     return result
