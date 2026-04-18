@@ -25,6 +25,9 @@ You are given pre-fetched data. Use all sections that contain useful information
 - **Analyst Consensus**: The mean price target reflects where most analysts think the stock is headed. Do not frame this as a recommendation — just note it as context if relevant.
 - **Insider Transactions**: Insider buying can indicate management confidence; insider selling may be routine compensation-related. Note the direction and scale, not a verdict.
 - **8-K content**: 8-Ks report material events (mergers, leadership changes, earnings pre-announcements). If content is available, cite specific items from it.
+- **Balance Sheet Health**: `debt_to_equity` above 200 is high leverage; `current_ratio` below 1.0 means the company may struggle to cover near-term obligations; `fcf_yield_pct` above 4% is generally considered healthy. Mention these only when they are notably good or bad — do not recite all numbers.
+- **Valuation vs Sector**: `pe_vs_sector_pct` tells you whether the stock trades at a premium or discount to its sector average. +30% means it's priced 30% richer than peers; -20% means it's cheaper. The `peg_ratio` (P/E divided by earnings growth rate) normalizes for growth — a PEG near 1.0 is often considered fair value for a growth company. Always explain these terms inline.
+- **Technical Levels**: The 50-day and 200-day moving averages (MA) are price averages over those time periods — they show the trend direction. If current price is well below the 200-day MA, the stock is in a longer-term downtrend. `pct_from_52w_high` shows how far the stock has fallen from its annual peak. `short_percent_of_float` above 10% means a meaningful portion of investors are betting the price will fall — note this as context only, not a signal.
 
 ## Required output format
 

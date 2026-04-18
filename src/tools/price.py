@@ -194,6 +194,145 @@ def get_analyst_data(ticker: str) -> dict[str, Any]:
     return result
 
 
+_SECTOR_PE_REFERENCE = {
+    "Technology": 35,
+    "Healthcare": 25,
+    "Financial Services": 15,
+    "Consumer Cyclical": 22,
+    "Consumer Defensive": 22,
+    "Industrials": 25,
+    "Energy": 12,
+    "Basic Materials": 15,
+    "Real Estate": 40,
+    "Communication Services": 20,
+    "Utilities": 18,
+}
+
+
+def get_balance_sheet(ticker: str) -> dict[str, Any]:
+    """Fetch balance sheet health: cash, debt, FCF, and key liquidity ratios."""
+    t = yf.Ticker(ticker)
+    result: dict[str, Any] = {
+        "market_cap": None,
+        "total_cash": None,
+        "total_debt": None,
+        "debt_to_equity": None,
+        "current_ratio": None,
+        "quick_ratio": None,
+        "free_cash_flow": None,
+        "operating_cash_flow": None,
+        "fcf_yield_pct": None,
+    }
+
+    try:
+        info = t.info
+        result["market_cap"] = info.get("marketCap")
+        result["total_cash"] = info.get("totalCash")
+        result["total_debt"] = info.get("totalDebt")
+        result["debt_to_equity"] = info.get("debtToEquity")
+        result["current_ratio"] = info.get("currentRatio")
+        result["quick_ratio"] = info.get("quickRatio")
+        result["free_cash_flow"] = info.get("freeCashflow")
+        result["operating_cash_flow"] = info.get("operatingCashflow")
+
+        fcf = result["free_cash_flow"]
+        mc = result["market_cap"]
+        if fcf and mc and mc > 0:
+            result["fcf_yield_pct"] = round((fcf / mc) * 100, 2)
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+def get_valuation_context(ticker: str) -> dict[str, Any]:
+    """Fetch valuation multiples with sector average comparison."""
+    t = yf.Ticker(ticker)
+    result: dict[str, Any] = {
+        "trailing_pe": None,
+        "forward_pe": None,
+        "peg_ratio": None,
+        "price_to_sales": None,
+        "price_to_book": None,
+        "ev_to_ebitda": None,
+        "sector": None,
+        "sector_avg_pe_reference": None,
+        "pe_vs_sector_pct": None,
+    }
+
+    try:
+        info = t.info
+        result["trailing_pe"] = info.get("trailingPE")
+        result["forward_pe"] = info.get("forwardPE")
+        result["peg_ratio"] = info.get("pegRatio")
+        result["price_to_sales"] = info.get("priceToSalesTrailing12Months")
+        result["price_to_book"] = info.get("priceToBook")
+        result["ev_to_ebitda"] = info.get("enterpriseToEbitda")
+
+        sector = info.get("sector")
+        result["sector"] = sector
+        ref_pe = _SECTOR_PE_REFERENCE.get(sector) if sector else None
+        result["sector_avg_pe_reference"] = ref_pe
+
+        trailing_pe = result["trailing_pe"]
+        if trailing_pe and ref_pe:
+            result["pe_vs_sector_pct"] = round(((trailing_pe - ref_pe) / ref_pe) * 100, 1)
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+def get_technical_levels(ticker: str) -> dict[str, Any]:
+    """Fetch 50/200-day moving averages, 52-week range position, and short interest."""
+    t = yf.Ticker(ticker)
+    result: dict[str, Any] = {
+        "ma_50": None,
+        "ma_200": None,
+        "price_vs_ma50_pct": None,
+        "price_vs_ma200_pct": None,
+        "fifty_two_week_high": None,
+        "fifty_two_week_low": None,
+        "pct_from_52w_high": None,
+        "pct_from_52w_low": None,
+        "short_percent_of_float": None,
+        "short_ratio_days_to_cover": None,
+    }
+
+    try:
+        info = t.info
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+        result["fifty_two_week_high"] = info.get("fiftyTwoWeekHigh")
+        result["fifty_two_week_low"] = info.get("fiftyTwoWeekLow")
+        result["short_percent_of_float"] = info.get("shortPercentOfFloat")
+        result["short_ratio_days_to_cover"] = info.get("shortRatio")
+
+        if current_price and result["fifty_two_week_high"]:
+            result["pct_from_52w_high"] = round(
+                ((current_price - result["fifty_two_week_high"]) / result["fifty_two_week_high"]) * 100, 1
+            )
+        if current_price and result["fifty_two_week_low"]:
+            result["pct_from_52w_low"] = round(
+                ((current_price - result["fifty_two_week_low"]) / result["fifty_two_week_low"]) * 100, 1
+            )
+
+        hist = t.history(period="1y")
+        if not hist.empty and current_price:
+            closes = hist["Close"]
+            if len(closes) >= 50:
+                ma50 = float(closes.rolling(50).mean().iloc[-1])
+                result["ma_50"] = round(ma50, 2)
+                result["price_vs_ma50_pct"] = round(((current_price - ma50) / ma50) * 100, 1)
+            if len(closes) >= 200:
+                ma200 = float(closes.rolling(200).mean().iloc[-1])
+                result["ma_200"] = round(ma200, 2)
+                result["price_vs_ma200_pct"] = round(((current_price - ma200) / ma200) * 100, 1)
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
 def get_insider_transactions(ticker: str) -> dict[str, Any]:
     """Fetch recent insider buy/sell transactions and ownership percentages."""
     t = yf.Ticker(ticker)

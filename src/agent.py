@@ -16,6 +16,9 @@ from .tools.price import (
     get_market_context,
     get_analyst_data,
     get_insider_transactions,
+    get_balance_sheet,
+    get_valuation_context,
+    get_technical_levels,
 )
 from .tools.brief_writer import parse_brief
 
@@ -36,7 +39,7 @@ def run_agent(
 
     if mode == "enhanced":
         # Fetch all data sources in parallel for lower latency
-        with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             f_news = executor.submit(get_recent_news, ticker, 7, True)
             f_filing = executor.submit(get_latest_filing, ticker)
             f_price = executor.submit(get_price_action, ticker)
@@ -44,6 +47,9 @@ def run_agent(
             f_market = executor.submit(get_market_context, ticker)
             f_analyst = executor.submit(get_analyst_data, ticker)
             f_insider = executor.submit(get_insider_transactions, ticker)
+            f_balance = executor.submit(get_balance_sheet, ticker)
+            f_valuation = executor.submit(get_valuation_context, ticker)
+            f_technical = executor.submit(get_technical_levels, ticker)
             news = f_news.result()
             filing = f_filing.result()
             price = f_price.result()
@@ -51,6 +57,9 @@ def run_agent(
             market_ctx = f_market.result()
             analyst = f_analyst.result()
             insider = f_insider.result()
+            balance = f_balance.result()
+            valuation = f_valuation.result()
+            technical = f_technical.result()
 
         enhanced_sections = f"""
 ## Earnings & Fundamentals
@@ -64,6 +73,15 @@ def run_agent(
 
 ## Insider Transactions
 {json.dumps(insider, indent=2)}
+
+## Balance Sheet Health
+{json.dumps(balance, indent=2)}
+
+## Valuation vs Sector
+{json.dumps(valuation, indent=2)}
+
+## Technical Levels
+{json.dumps(technical, indent=2)}
 """
         search_note = "\nUse the Google Search tool if you need to verify or expand on any of the above."
         gemini_tools = [types.Tool(google_search=types.GoogleSearch())]
