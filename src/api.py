@@ -178,6 +178,53 @@ def get_context(request: Request, ticker: str):
     return get_knowledge_context(ticker)
 
 
+# ---------- search ----------
+@app.get("/search")
+@limiter.limit("120/hour")
+def search_tickers(request: Request, q: str = "", limit: int = 8):
+    """Type-ahead search over the knowledge graph.
+
+    Matches by ticker exact/prefix and company-name prefix/substring so a user
+    can type "microsoft" and find MSFT. Returns [{ticker, name, sector}, ...].
+    """
+    q = (q or "").strip()
+    if len(q) < 1:
+        return {"results": []}
+
+    from .knowledge_graph.graph import get_graph
+    graph = get_graph()
+    ql = q.lower()
+    limit = max(1, min(limit, 20))
+
+    scored: list[tuple[int, dict]] = []
+    for ticker, node in graph.nodes.items():
+        name = (node.get("name") or "")
+        tl = ticker.lower()
+        nl = name.lower()
+
+        score = 0
+        if tl == ql:
+            score = 1000
+        elif tl.startswith(ql):
+            score = 500 + max(0, 10 - len(ticker))
+        elif nl.startswith(ql):
+            score = 300 + max(0, 40 - len(name))
+        elif f" {ql}" in f" {nl}":  # word-boundary substring
+            score = 180 + max(0, 40 - len(name))
+        elif ql in nl:
+            score = 120
+
+        if score > 0:
+            scored.append((score, {
+                "ticker": ticker,
+                "name": name,
+                "sector": node.get("gics_sector", ""),
+            }))
+
+    scored.sort(key=lambda s: (-s[0], s[1]["ticker"]))
+    return {"results": [r for _, r in scored[:limit]]}
+
+
 # ---------- alerts ----------
 @app.get("/alerts")
 def list_alerts(user: Annotated[User, Depends(current_user)], db: Annotated[Session, Depends(get_db)]):

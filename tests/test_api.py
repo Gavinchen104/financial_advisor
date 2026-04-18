@@ -248,6 +248,57 @@ def test_delete_holding(authed_client, mock_prices):
 
 
 # ---------- alerts ----------
+# ---------- /search (ticker autocomplete) ----------
+def test_search_by_company_name_returns_ticker(client):
+    r = client.get("/search", params={"q": "microsoft"})
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert any(x["ticker"] == "MSFT" for x in results)
+
+
+def test_search_by_ticker_prefix(client):
+    r = client.get("/search", params={"q": "nv"})
+    tickers = [x["ticker"] for x in r.json()["results"]]
+    assert "NVDA" in tickers
+
+
+def test_search_exact_ticker_ranks_first(client):
+    r = client.get("/search", params={"q": "MSFT"})
+    first = r.json()["results"][0]
+    assert first["ticker"] == "MSFT"
+
+
+def test_search_is_case_insensitive(client):
+    lower = client.get("/search", params={"q": "coca"}).json()["results"]
+    upper = client.get("/search", params={"q": "COCA"}).json()["results"]
+    assert [r["ticker"] for r in lower] == [r["ticker"] for r in upper]
+    assert any(r["ticker"] == "KO" for r in lower)
+
+
+def test_search_empty_query_returns_empty(client):
+    r = client.get("/search", params={"q": ""})
+    assert r.status_code == 200
+    assert r.json() == {"results": []}
+
+
+def test_search_respects_limit(client):
+    r = client.get("/search", params={"q": "a", "limit": 3})
+    assert len(r.json()["results"]) <= 3
+
+
+def test_search_result_has_expected_fields(client):
+    r = client.get("/search", params={"q": "microsoft"})
+    first = r.json()["results"][0]
+    assert set(first.keys()) == {"ticker", "name", "sector"}
+
+
+def test_search_no_match_returns_empty_list(client):
+    r = client.get("/search", params={"q": "xyzzyflub"})
+    assert r.status_code == 200
+    assert r.json() == {"results": []}
+
+
+# ---------- alerts ----------
 def test_alerts_requires_auth(client):
     assert client.get("/alerts").status_code == 401
 

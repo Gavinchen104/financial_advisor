@@ -46,6 +46,89 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// ---------------------- Ticker autocomplete ----------------------
+// Attaches a "type a company name, pick a ticker" dropdown to an <input>.
+// Works against GET /search. The input is mutated in place on selection so
+// existing form submit handlers see the normalized ticker.
+function attachTickerAutocomplete(input, opts = {}) {
+  if (!input || input.dataset.autocompleteAttached === '1') return;
+  input.dataset.autocompleteAttached = '1';
+  input.setAttribute('autocomplete', 'off');
+  // maxlength=5 blocks "microsoft" mid-typing; widen so the query works.
+  if (input.hasAttribute('maxlength')) input.setAttribute('maxlength', '40');
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'ac-wrap';
+  input.parentNode.insertBefore(wrapper, input);
+  wrapper.appendChild(input);
+
+  const list = document.createElement('div');
+  list.className = 'ac-list hidden';
+  list.setAttribute('role', 'listbox');
+  wrapper.appendChild(list);
+
+  let results = [];
+  let active = -1;
+  let token = 0;
+
+  function close() { list.classList.add('hidden'); active = -1; }
+  function render() {
+    if (!results.length) { close(); return; }
+    list.innerHTML = results.map((r, i) => `
+      <div class="ac-item${i === active ? ' ac-active' : ''}" role="option" data-i="${i}">
+        <span class="ac-ticker mono">${escapeHtml(r.ticker)}</span>
+        <span class="ac-name">${escapeHtml(r.name)}</span>
+        <span class="ac-sector">${escapeHtml(r.sector || '')}</span>
+      </div>
+    `).join('');
+    list.classList.remove('hidden');
+  }
+  function pick(i) {
+    const r = results[i];
+    if (!r) return;
+    input.value = r.ticker;
+    close();
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    if (opts.onPick) opts.onPick(r);
+  }
+
+  let debounceId = null;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceId);
+    const q = input.value.trim();
+    if (q.length < 1) { results = []; close(); return; }
+    const my = ++token;
+    debounceId = setTimeout(async () => {
+      try {
+        const r = await fetch(`/search?q=${encodeURIComponent(q)}&limit=8`);
+        if (!r.ok) return;
+        const data = await r.json();
+        if (my !== token) return;  // stale
+        results = data.results || [];
+        active = results.length ? 0 : -1;
+        render();
+      } catch (_) { /* network hiccup — silently no-op */ }
+    }, 120);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (list.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % results.length; render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + results.length) % results.length; render(); }
+    else if (e.key === 'Enter') {
+      if (active >= 0) { e.preventDefault(); pick(active); }
+    } else if (e.key === 'Escape') { close(); }
+  });
+
+  list.addEventListener('mousedown', e => {
+    const item = e.target.closest('.ac-item');
+    if (item) { e.preventDefault(); pick(parseInt(item.dataset.i, 10)); }
+  });
+
+  input.addEventListener('blur', () => setTimeout(close, 120));
+  input.addEventListener('focus', () => { if (results.length) list.classList.remove('hidden'); });
+}
+
 // ---------------------- Auth header ----------------------
 let CURRENT_USER = null;
 async function loadUser() {
@@ -217,6 +300,9 @@ async function renderDashboard(main) {
     const t = document.getElementById('quick-ticker').value.trim().toUpperCase();
     if (t) navigate(`ticker/${t}`);
   });
+  attachTickerAutocomplete(document.getElementById('quick-ticker'), {
+    onPick: r => navigate(`ticker/${r.ticker}`),
+  });
 }
 
 // ---------------------- Watchlist ----------------------
@@ -256,6 +342,7 @@ async function renderWatchlist(main) {
     await api('/watchlist', { method: 'POST', body: JSON.stringify({ ticker: t }) });
     render();
   });
+  attachTickerAutocomplete(document.getElementById('add-ticker'));
 
   main.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -414,6 +501,7 @@ async function renderPortfolio(main) {
   document.getElementById('add-btn').addEventListener('click', () => modal.classList.remove('hidden'));
   document.getElementById('close-add').addEventListener('click', () => modal.classList.add('hidden'));
   modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+  attachTickerAutocomplete(document.getElementById('h-ticker'));
 
   document.getElementById('add-holding-form').addEventListener('submit', async e => {
     e.preventDefault();
@@ -486,6 +574,8 @@ async function renderCompare(main, args) {
     const b = document.getElementById('c2').value.trim().toUpperCase();
     if (a && b) navigate(`compare/${a}/${b}`);
   });
+  attachTickerAutocomplete(document.getElementById('c1'));
+  attachTickerAutocomplete(document.getElementById('c2'));
 
   if (tickers.length >= 2) {
     const [ctxA, ctxB] = await Promise.all([
