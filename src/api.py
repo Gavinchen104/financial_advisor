@@ -1,8 +1,6 @@
 import json
-import concurrent.futures
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -21,7 +19,6 @@ app = FastAPI(title="Financial Advisor", version="0.1.0")
 class BriefRequest(BaseModel):
     ticker: str
     experience_level: str = "first_year"
-    mode: Literal["baseline", "enhanced"] = "enhanced"
 
 
 class BriefResponse(BaseModel):
@@ -32,13 +29,6 @@ class BriefResponse(BaseModel):
     sources_text: str
     full_brief: str
     disclaimer: str
-    mode: str
-
-
-class CompareResponse(BaseModel):
-    ticker: str
-    baseline: BriefResponse
-    enhanced: BriefResponse
 
 
 def _validate_ticker(ticker: str) -> str:
@@ -48,8 +38,8 @@ def _validate_ticker(ticker: str) -> str:
     return ticker
 
 
-def _log(ticker: str, experience_level: str, mode: str):
-    entry = {"ts": datetime.now(timezone.utc).isoformat(), "ticker": ticker, "experience_level": experience_level, "mode": mode}
+def _log(ticker: str, experience_level: str):
+    entry = {"ts": datetime.now(timezone.utc).isoformat(), "ticker": ticker, "experience_level": experience_level}
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
@@ -63,28 +53,8 @@ def serve_index():
 def generate_brief(req: BriefRequest):
     ticker = _validate_ticker(req.ticker)
     from .agent import run_agent
-    result = run_agent(ticker, req.experience_level, req.mode)
+    result = run_agent(ticker, req.experience_level)
     if "error" in result and not result.get("what_happened"):
         raise HTTPException(status_code=500, detail=result["error"])
-    _log(ticker, req.experience_level, req.mode)
+    _log(ticker, req.experience_level)
     return BriefResponse(**result)
-
-
-@app.post("/brief/compare", response_model=CompareResponse)
-def compare_briefs(req: BriefRequest):
-    """Run baseline and enhanced in parallel and return both for side-by-side comparison."""
-    ticker = _validate_ticker(req.ticker)
-    from .agent import run_agent
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        f_baseline = executor.submit(run_agent, ticker, req.experience_level, "baseline")
-        f_enhanced = executor.submit(run_agent, ticker, req.experience_level, "enhanced")
-        baseline = f_baseline.result()
-        enhanced = f_enhanced.result()
-
-    _log(ticker, req.experience_level, "compare")
-    return CompareResponse(
-        ticker=ticker,
-        baseline=BriefResponse(**baseline),
-        enhanced=BriefResponse(**enhanced),
-    )

@@ -1,8 +1,11 @@
 import json
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
 import yfinance as yf
+
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 _SECTOR_ETF_MAP = {
     "Technology": "XLK",
@@ -17,6 +20,11 @@ _SECTOR_ETF_MAP = {
     "Communication Services": "XLC",
     "Utilities": "XLU",
 }
+
+
+def _yf_url(ticker: str, tab: str = "") -> str:
+    base = f"https://finance.yahoo.com/quote/{ticker}"
+    return f"{base}/{tab}" if tab else base
 
 
 def get_price_action(ticker: str, days: int = 7) -> dict[str, Any]:
@@ -51,6 +59,7 @@ def get_price_action(ticker: str, days: int = 7) -> dict[str, Any]:
         "last_volume": int(last_vol),
         "avg_volume_7d": int(avg_vol),
         "volume_vs_avg": round(last_vol / avg_vol, 2) if avg_vol else None,
+        "source_url": _yf_url(ticker),
     }
 
 
@@ -72,6 +81,7 @@ def get_earnings_data(ticker: str) -> dict[str, Any]:
         "profit_margin": info.get("profitMargins"),
         "next_earnings_date": None,
         "recent_quarterly_eps": [],
+        "source_url": _yf_url(ticker, "financials"),
     }
 
     try:
@@ -118,6 +128,7 @@ def get_market_context(ticker: str, days: int = 7) -> dict[str, Any]:
         "sector": None,
         "sector_etf": None,
         "sector_etf_pct_change": None,
+        "source_url": _yf_url("SPY"),
     }
 
     try:
@@ -160,6 +171,7 @@ def get_analyst_data(ticker: str) -> dict[str, Any]:
         "price_target_current": None,
         "recent_upgrades_downgrades": [],
         "recommendation_summary": [],
+        "source_url": _yf_url(ticker, "analysis"),
     }
 
     try:
@@ -222,6 +234,7 @@ def get_balance_sheet(ticker: str) -> dict[str, Any]:
         "free_cash_flow": None,
         "operating_cash_flow": None,
         "fcf_yield_pct": None,
+        "source_url": _yf_url(ticker, "balance-sheet"),
     }
 
     try:
@@ -258,6 +271,7 @@ def get_valuation_context(ticker: str) -> dict[str, Any]:
         "sector": None,
         "sector_avg_pe_reference": None,
         "pe_vs_sector_pct": None,
+        "source_url": _yf_url(ticker, "financials"),
     }
 
     try:
@@ -297,6 +311,7 @@ def get_technical_levels(ticker: str) -> dict[str, Any]:
         "pct_from_52w_low": None,
         "short_percent_of_float": None,
         "short_ratio_days_to_cover": None,
+        "source_url": _yf_url(ticker, "history"),
     }
 
     try:
@@ -340,6 +355,7 @@ def get_insider_transactions(ticker: str) -> dict[str, Any]:
         "insider_ownership_pct": None,
         "institutional_ownership_pct": None,
         "recent_transactions": [],
+        "source_url": _yf_url(ticker, "insider-transactions"),
     }
 
     try:

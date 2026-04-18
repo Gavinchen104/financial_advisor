@@ -2,8 +2,8 @@ import concurrent.futures
 import json
 import os
 from pathlib import Path
-from typing import Literal
 
+import yfinance as yf
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -30,15 +30,23 @@ SYSTEM_PROMPT = (_PROMPTS_DIR / "system.md").read_text()
 _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
-def run_agent(
-    ticker: str,
-    experience_level: str = "first_year",
-    mode: Literal["baseline", "enhanced"] = "enhanced",
-) -> dict:
+def _ticker_has_price_data(ticker: str) -> bool:
+    try:
+        return yf.Ticker(ticker).fast_info.last_price is not None
+    except Exception:
+        return False
+
+
+def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
     ticker = ticker.strip().upper()
 
-    if mode == "enhanced":
-        # Fetch all data sources in parallel for lower latency
+    if not _ticker_has_price_data(ticker):
+        news = get_recent_news(ticker, fetch_content=False)
+        filing = get_latest_filing(ticker)
+        price = {"error": f"No price data found for {ticker}. It may be an invalid or delisted ticker."}
+        enhanced_sections = ""
+        gemini_tools = []
+    else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             f_news = executor.submit(get_recent_news, ticker, 7, True)
             f_filing = executor.submit(get_latest_filing, ticker)
@@ -83,15 +91,7 @@ def run_agent(
 ## Technical Levels
 {json.dumps(technical, indent=2)}
 """
-        search_note = "\nUse the Google Search tool if you need to verify or expand on any of the above."
         gemini_tools = [types.Tool(google_search=types.GoogleSearch())]
-    else:
-        news = get_recent_news(ticker, fetch_content=False)
-        filing = get_latest_filing(ticker)
-        price = get_price_action(ticker)
-        enhanced_sections = ""
-        search_note = ""
-        gemini_tools = []
 
     user_message = f"""Generate a Financial Advisor brief for {ticker}. Experience level: {experience_level}.
 
@@ -105,7 +105,8 @@ Here is all the data you need:
 
 ## Price Action (last 7 days)
 {json.dumps(price, indent=2)}
-{enhanced_sections}{search_note}
+{enhanced_sections}
+Use the Google Search tool if you need to verify or expand on any of the above.
 Now write the brief using the required format."""
 
     response = _client.models.generate_content(
@@ -118,5 +119,4 @@ Now write the brief using the required format."""
     )
 
     result = parse_brief(response.text, ticker)
-    result["mode"] = mode
     return result
