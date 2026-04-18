@@ -63,11 +63,10 @@ financial_advisor/
 │           ├── style.css           # Claude-aesthetic design tokens
 │           └── app.js              # SPA routes, auth, watchlist, graph viz
 ├── scripts/
-│   ├── smoke_test.py               # runs the agent on 3 known tickers
 │   ├── build_knowledge_graph.py    # rebuilds sp500_graph.json
 │   └── refresh_news_cache.py       # daily pre-warm of hot-list news
 ├── .github/workflows/
-│   ├── ci.yml                      # lint, import check, smoke test
+│   ├── ci.yml                      # lint, import check, pytest
 │   ├── refresh-knowledge-graph.yml # weekly cron
 │   └── refresh-news-cache.yml      # daily cron
 ├── data/
@@ -157,7 +156,7 @@ consulting a licensed financial advisor.
 - Fix bugs, improve error handling, refactor within a file
 - Improve the system prompt for tone/clarity
 - Improve the design system or component polish
-- Keep the smoke test passing
+- Keep the test suite passing
 
 ## Running it
 
@@ -178,8 +177,8 @@ uv run uvicorn src.api:app --reload
 # or via docker
 docker compose up --build
 
-# smoke test
-uv run python scripts/smoke_test.py
+# tests
+uv run pytest -q
 ```
 
 ## Known limitations

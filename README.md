@@ -124,11 +124,7 @@ uv run pytest -q                                         # 67 tests, ~10s
 uv run pytest --cov=src --cov-report=term-missing        # with coverage
 ```
 
-CI runs lint + import check + pytest on every push. A smoke test against the real Gemini API runs optionally when `vars.RUN_SMOKE_TESTS=true`.
-
-```bash
-uv run python scripts/smoke_test.py                      # end-to-end against real API
-```
+CI runs lint + import check + pytest on every push.
 
 ---
 
@@ -148,13 +144,12 @@ src/
   knowledge_graph/  compiled S&P 500 graph, curated edges, macro factors
   web/              index.html (landing + sample brief + demo graph), app.html (SPA shell), static/ (CSS + JS + D3)
 scripts/
-  smoke_test.py                   end-to-end against real Gemini
   build_knowledge_graph.py        (re)compile the graph into sp500_graph.json
   refresh_news_cache.py           daily cron — pre-warm hot-list news
 migrations/                       Alembic schema history
 tests/                            pytest suite + fixtures
 .github/workflows/
-  ci.yml                          lint, import, pytest, optional smoke
+  ci.yml                          lint, import, pytest
   refresh-knowledge-graph.yml     weekly cron
   refresh-news-cache.yml          daily cron
 ```
