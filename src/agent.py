@@ -2,7 +2,8 @@ import json
 import os
 from pathlib import Path
 
-import anthropic
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 from .tools.news import get_recent_news
@@ -15,101 +16,38 @@ load_dotenv()
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 SYSTEM_PROMPT = (_PROMPTS_DIR / "system.md").read_text()
 
-TOOL_DEFS = [
-    {
-        "name": "get_recent_news",
-        "description": "Fetch recent news headlines and URLs for a stock ticker from the past N days.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. NVDA"},
-                "days": {"type": "integer", "description": "Days of news to fetch", "default": 7},
-            },
-            "required": ["ticker"],
-        },
-    },
-    {
-        "name": "get_latest_filing",
-        "description": "Fetch the most recent SEC filing (10-K, 10-Q, or 8-K) for a stock ticker.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ticker": {"type": "string", "description": "Stock ticker symbol"},
-            },
-            "required": ["ticker"],
-        },
-    },
-    {
-        "name": "get_price_action",
-        "description": "Fetch recent price action for a stock ticker: % change, volume, weekly high/low.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ticker": {"type": "string", "description": "Stock ticker symbol"},
-                "days": {"type": "integer", "description": "Number of trading days to look back", "default": 7},
-            },
-            "required": ["ticker"],
-        },
-    },
-]
-
-_TOOL_FNS = {
-    "get_recent_news": get_recent_news,
-    "get_latest_filing": get_latest_filing,
-    "get_price_action": get_price_action,
-}
+_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
 def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
-    """Run the Financial Advisor agent for a ticker and return a structured brief."""
-    client = anthropic.Anthropic()
     ticker = ticker.strip().upper()
 
-    messages: list[dict] = [
-        {
-            "role": "user",
-            "content": f"Generate a Financial Advisor brief for {ticker}. Experience level: {experience_level}.",
-        }
-    ]
+    # Gather all data upfront
+    news = get_recent_news(ticker)
+    filing = get_latest_filing(ticker)
+    price = get_price_action(ticker)
 
-    for _ in range(10):
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            # Cache the system prompt — it's large and constant across requests
-            system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
-            tools=TOOL_DEFS,
-            messages=messages,
-        )
+    user_message = f"""Generate a Financial Advisor brief for {ticker}. Experience level: {experience_level}.
 
-        messages.append({"role": "assistant", "content": response.content})
+Here is all the data you need:
 
-        if response.stop_reason == "end_turn":
-            text = next(
-                (b.text for b in response.content if hasattr(b, "text")),
-                "",
-            )
-            return parse_brief(text, ticker)
+## Recent News
+{json.dumps(news, indent=2)}
 
-        if response.stop_reason != "tool_use":
-            break
+## Latest SEC Filing
+{json.dumps(filing, indent=2)}
 
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            fn = _TOOL_FNS.get(block.name)
-            if fn is None:
-                result = {"error": f"Unknown tool: {block.name}"}
-            else:
-                try:
-                    result = fn(**block.input)
-                except Exception as e:
-                    result = {"error": str(e)}
-            tool_results.append(
-                {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)}
-            )
+## Price Action (last 7 days)
+{json.dumps(price, indent=2)}
 
-        messages.append({"role": "user", "content": tool_results})
+Now write the brief using the required format."""
 
-    return parse_brief("## What happened\nThe agent did not produce a complete brief.\n\n## Why the price moved\nUnable to determine.\n\n## What it means for a first-year investor\nNo information available.\n\n## Sources\nN/A", ticker)
+    response = _client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=user_message,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+        ),
+    )
+
+    return parse_brief(response.text, ticker)
