@@ -3,175 +3,160 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Financial Advisor — Stock Briefs for New Investors</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <style>
-    .prose h2 { font-size: 1rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.25rem; color: #111827; }
-    .prose p { margin-bottom: 0.75rem; color: #374151; line-height: 1.6; }
-    .prose em { color: #6b7280; font-style: normal; font-size: 0.8rem; }
-    .prose hr { margin: 1rem 0; border-color: #e5e7eb; }
-  </style>
+  <title>DinoDigest — Plain-English Stock Briefs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="bg-gray-50 min-h-screen font-sans">
-  <div class="max-w-5xl mx-auto px-4 py-12">
+<body>
+  <div class="container">
+    <nav class="nav">
+      <div class="nav-brand">
+        <div class="nav-brand-logo">D</div>
+        DinoDigest
+      </div>
+      <div class="nav-links" id="nav-links">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle theme">🌓</button>
+        <a class="btn btn-ghost btn-sm" href="#" id="open-login">Log in</a>
+        <a class="btn btn-primary btn-sm" href="#" id="open-signup">Sign up</a>
+      </div>
+    </nav>
 
-    <div class="mb-8">
-      <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Financial Advisor</h1>
-      <p class="text-gray-400 text-sm mt-1">Plain-English stock briefs for first-year investors</p>
+    <section class="hero">
+      <h1>Plain-English stock briefs,<br>built for first-year investors.</h1>
+      <p>Enter any US ticker. Get what happened, why it moved, and what it means — with real sources. No hype, no jargon, no advice.</p>
+      <div class="hero-cta">
+        <a href="#" class="btn btn-primary" id="hero-cta">Try it free</a>
+        <a href="#demo" class="btn btn-secondary">See a sample</a>
+      </div>
+    </section>
+
+    <section id="demo" class="mt-4">
+      <div class="grid grid-3">
+        <div class="card">
+          <h3 class="card-title">What happened</h3>
+          <p class="text-muted text-sm">Factual, bullet-point summary of the past week's news, filings, and price action. No interpretation.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Why it moved</h3>
+          <p class="text-muted text-sm">Cited analysis drawing from earnings, analyst consensus, insider activity, and knowledge-graph context.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">What it means</h3>
+          <p class="text-muted text-sm">Plain English takeaway — is this normal volatility, a material change, or sector-wide? Never a recommendation.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-4 mb-4">
+      <div class="card">
+        <h3 class="card-title">Powered by a knowledge graph of 500+ companies</h3>
+        <p class="text-muted text-sm mt-1">Every brief considers a stock's competitors, suppliers, customers, and macro sensitivities — so when a stock moves, you see <em>why</em> in context, not in isolation.</p>
+      </div>
+    </section>
+
+    <!-- Auth modal -->
+    <div id="auth-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem;">
+      <div class="card" style="width:100%;max-width:420px;box-shadow:var(--shadow-lg);">
+        <div class="flex items-center justify-between mb-2">
+          <h2 id="auth-title">Log in</h2>
+          <button class="btn btn-ghost btn-icon" onclick="closeAuth()">✕</button>
+        </div>
+        <div id="auth-error" class="banner banner-error hidden"></div>
+        <form id="auth-form">
+          <div class="mb-2" id="name-field" style="display:none;">
+            <label class="label">Name (optional)</label>
+            <input class="input" type="text" id="auth-name" autocomplete="name" />
+          </div>
+          <div class="mb-2">
+            <label class="label">Email</label>
+            <input class="input" type="email" id="auth-email" autocomplete="email" required />
+          </div>
+          <div class="mb-3">
+            <label class="label">Password</label>
+            <input class="input" type="password" id="auth-password" autocomplete="current-password" required minlength="8" />
+          </div>
+          <button type="submit" class="btn btn-primary w-full" id="auth-submit">Log in</button>
+        </form>
+        <p class="text-sm text-muted mt-2" style="text-align:center;">
+          <a href="#" id="auth-switch">Need an account? Sign up</a>
+        </p>
+      </div>
     </div>
-
-    <form id="brief-form" class="flex flex-wrap gap-2 mb-6">
-      <input
-        id="ticker-input"
-        type="text"
-        placeholder="Ticker (e.g. NVDA)"
-        maxlength="5"
-        autocomplete="off"
-        spellcheck="false"
-        class="border border-gray-300 rounded-lg px-4 py-2.5 text-sm uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
-      />
-      <button type="submit" id="submit-btn"
-        class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-40">
-        Get Brief
-      </button>
-    </form>
-
-    <div id="status" class="hidden text-sm text-gray-400 mb-4">Generating — this may take up to 60 seconds...</div>
-    <div id="error" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4"></div>
-
-    <div id="brief-output" class="hidden bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-5 prose mb-6"></div>
-
-    <div id="context-panel" class="hidden bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-5">
-      <h2 class="text-base font-bold text-gray-900 mb-1">Knowledge graph context</h2>
-      <p class="text-xs text-gray-400 mb-4">Related companies and macro factors with 7-day price changes.</p>
-      <div id="context-body"></div>
-    </div>
-
   </div>
 
   <script>
-    const form = document.getElementById('brief-form');
-    const input = document.getElementById('ticker-input');
-    const submitBtn = document.getElementById('submit-btn');
-    const status = document.getElementById('status');
-    const errDiv = document.getElementById('error');
-    const briefOutput = document.getElementById('brief-output');
-    const contextPanel = document.getElementById('context-panel');
-    const contextBody = document.getElementById('context-body');
+    // Check if already logged in — redirect to app
+    (async () => {
+      try {
+        const r = await fetch('/auth/me');
+        if (r.ok) window.location.href = '/app';
+      } catch (_) {}
+    })();
 
-    input.addEventListener('input', () => {
-      input.value = input.value.toUpperCase().replace(/[^A-Z.]/g, '');
+    // Theme
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
     });
 
-    function setLoading(on) {
-      submitBtn.disabled = on;
-      status.classList.toggle('hidden', !on);
-      errDiv.classList.add('hidden');
-    }
+    // Auth modal
+    let authMode = 'login';
+    const modal = document.getElementById('auth-modal');
+    const title = document.getElementById('auth-title');
+    const nameField = document.getElementById('name-field');
+    const submitBtn = document.getElementById('auth-submit');
+    const switchLink = document.getElementById('auth-switch');
+    const errBanner = document.getElementById('auth-error');
 
-    function showError(msg) {
-      errDiv.textContent = msg;
-      errDiv.classList.remove('hidden');
+    function openAuth(mode) {
+      authMode = mode;
+      title.textContent = mode === 'signup' ? 'Create your account' : 'Log in';
+      submitBtn.textContent = mode === 'signup' ? 'Sign up' : 'Log in';
+      nameField.style.display = mode === 'signup' ? 'block' : 'none';
+      switchLink.textContent = mode === 'signup' ? 'Already have an account? Log in' : 'Need an account? Sign up';
+      errBanner.classList.add('hidden');
+      modal.classList.remove('hidden');
     }
+    function closeAuth() { modal.classList.add('hidden'); }
+    window.closeAuth = closeAuth;
 
-    function fmtPct(p) {
-      if (p === null || p === undefined) return '<span class="text-gray-400">—</span>';
-      const cls = p > 0 ? 'text-green-600' : (p < 0 ? 'text-red-600' : 'text-gray-500');
-      const sign = p > 0 ? '+' : '';
-      return `<span class="${cls} font-mono">${sign}${p.toFixed(2)}%</span>`;
-    }
+    document.getElementById('open-login').addEventListener('click', e => { e.preventDefault(); openAuth('login'); });
+    document.getElementById('open-signup').addEventListener('click', e => { e.preventDefault(); openAuth('signup'); });
+    document.getElementById('hero-cta').addEventListener('click', e => { e.preventDefault(); openAuth('signup'); });
+    switchLink.addEventListener('click', e => { e.preventDefault(); openAuth(authMode === 'login' ? 'signup' : 'login'); });
+    modal.addEventListener('click', e => { if (e.target === modal) closeAuth(); });
 
-    function renderRelatedList(title, items, tickerKey) {
-      if (!items || items.length === 0) return '';
-      const rows = items.map(it => `
-        <tr class="border-b border-gray-100 last:border-0">
-          <td class="py-1.5 pr-3 font-mono text-xs text-gray-900">${it[tickerKey] || '—'}</td>
-          <td class="py-1.5 pr-3 text-xs text-gray-700">${it.name || ''}</td>
-          <td class="py-1.5 pr-3 text-xs text-gray-500">${it.relationship_label || ''}</td>
-          <td class="py-1.5 text-right text-xs">${fmtPct(it.pct_change_7d)}</td>
-        </tr>`).join('');
-      return `
-        <div class="mb-5">
-          <h3 class="text-sm font-semibold text-gray-800 mb-2">${title}</h3>
-          <table class="w-full text-left"><tbody>${rows}</tbody></table>
-        </div>`;
-    }
-
-    function renderMacro(items) {
-      if (!items || items.length === 0) return '';
-      const rows = items.map(it => `
-        <tr class="border-b border-gray-100 last:border-0">
-          <td class="py-1.5 pr-3 text-xs text-gray-900">${it.factor_name || it.factor_id}</td>
-          <td class="py-1.5 pr-3 text-xs text-gray-500">${it.direction || ''}</td>
-          <td class="py-1.5 pr-3 text-xs text-gray-500">${it.reason || ''}</td>
-          <td class="py-1.5 text-right text-xs">${fmtPct(it.pct_change_7d)}</td>
-        </tr>`).join('');
-      return `
-        <div class="mb-1">
-          <h3 class="text-sm font-semibold text-gray-800 mb-2">Macro factors</h3>
-          <table class="w-full text-left"><tbody>${rows}</tbody></table>
-        </div>`;
-    }
-
-    function renderContext(data) {
-      if (!data || data.error) {
-        contextBody.innerHTML = `<p class="text-sm text-gray-500">${data?.error || 'No context available.'}</p>`;
-        contextPanel.classList.remove('hidden');
-        return;
-      }
-      const header = `
-        <p class="text-xs text-gray-500 mb-4">
-          <span class="font-mono">${data.ticker}</span> — ${data.company_name || ''}
-          ${data.sector ? `· <span class="text-gray-400">${data.sector}</span>` : ''}
-          ${data.sub_industry ? `· <span class="text-gray-400">${data.sub_industry}</span>` : ''}
-        </p>`;
-      contextBody.innerHTML = header
-        + renderRelatedList('Competitors', data.competitors, 'ticker')
-        + renderRelatedList('Key suppliers', data.key_suppliers, 'ticker')
-        + renderRelatedList('Key customers', data.key_customers, 'ticker')
-        + renderMacro(data.macro_factors);
-      contextPanel.classList.remove('hidden');
-    }
-
-    async function fetchContext(ticker) {
-      try {
-        const resp = await fetch(`/context/${encodeURIComponent(ticker)}`);
-        if (!resp.ok) return;
-        renderContext(await resp.json());
-      } catch (_) { /* silent — context is optional */ }
-    }
-
-    async function fetchBrief(ticker) {
-      const resp = await fetch('/brief', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, experience_level: 'first_year' }),
-      });
-      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || `HTTP ${resp.status}`);
-      const data = await resp.json();
-      briefOutput.innerHTML = marked.parse(data.full_brief);
-      briefOutput.classList.remove('hidden');
-    }
-
-    form.addEventListener('submit', async (e) => {
+    document.getElementById('auth-form').addEventListener('submit', async e => {
       e.preventDefault();
-      const ticker = input.value.trim();
-      if (!ticker) return;
-
-      setLoading(true);
-      briefOutput.classList.add('hidden');
-      contextPanel.classList.add('hidden');
-      contextBody.innerHTML = '';
-
-      // Fire both in parallel. Context is fast (~2s) and shows first.
-      fetchContext(ticker);
+      errBanner.classList.add('hidden');
+      submitBtn.disabled = true;
+      const body = {
+        email: document.getElementById('auth-email').value.trim(),
+        password: document.getElementById('auth-password').value,
+      };
+      if (authMode === 'signup') body.display_name = document.getElementById('auth-name').value.trim() || null;
       try {
-        await fetchBrief(ticker);
+        const r = await fetch(`/auth/${authMode === 'signup' ? 'signup' : 'login'}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) {
+          const msg = (await r.json().catch(() => ({}))).detail || `Error ${r.status}`;
+          throw new Error(msg);
+        }
+        window.location.href = '/app';
       } catch (err) {
-        showError(err.message);
+        errBanner.textContent = err.message;
+        errBanner.classList.remove('hidden');
       } finally {
-        setLoading(false);
+        submitBtn.disabled = false;
       }
     });
   </script>
