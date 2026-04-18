@@ -266,6 +266,80 @@ async function renderWatchlist(main) {
 }
 
 // ---------------------- Portfolio ----------------------
+function renderRiskProfile(rp) {
+  if (!rp) return '';
+
+  const beta = rp.portfolio_beta;
+  let betaHint = '—';
+  if (beta !== null && beta !== undefined) {
+    if (beta > 1.3) betaHint = 'more volatile than S&P 500';
+    else if (beta < 0.7) betaHint = 'less volatile than S&P 500';
+    else betaHint = 'moves with the market';
+  }
+
+  const concColor = rp.concentration.level === 'diversified' ? 'var(--up)'
+    : rp.concentration.level === 'moderate' ? 'var(--warn)'
+    : 'var(--down)';
+
+  const top = rp.top_position;
+  const topLine = top
+    ? `<a href="#ticker/${top.ticker}" class="mono">${top.ticker}</a> · ${top.weight_pct.toFixed(1)}% of portfolio`
+    : '—';
+
+  // Sector bar palette — distinct enough to read without legend noise
+  const palette = ['#0a3d62', '#c89f3c', '#0d8f5c', '#6b5b95', '#b5651d', '#8a9ba8', '#4a6fa5', '#9c6b30', '#5d7b6f', '#a85c5c'];
+  const sectorBars = rp.sector_exposure.map((s, i) => `
+    <div style="margin-bottom:0.5rem;">
+      <div class="flex justify-between" style="font-size:0.8rem; margin-bottom:0.2rem;">
+        <span>${escapeHtml(s.sector)}</span>
+        <span class="mono">${s.weight_pct.toFixed(1)}%</span>
+      </div>
+      <div style="background:var(--bg-subtle); height:8px; border-radius:var(--radius-sm); overflow:hidden;">
+        <div style="width:${Math.min(s.weight_pct, 100)}%; height:100%; background:${palette[i % palette.length]};"></div>
+      </div>
+    </div>`).join('');
+
+  const coverageNote = rp.coverage_pct < 100
+    ? `<div class="text-xs text-soft mt-1">Based on ${rp.coverage_pct.toFixed(0)}% of portfolio value (some tickers had incomplete data).</div>`
+    : '';
+
+  return `
+    <div class="card mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="card-title" style="margin-bottom:0;">Risk profile</h3>
+        <span class="text-xs text-soft">Portfolio-level analytics</span>
+      </div>
+
+      <div class="grid grid-3 mb-3">
+        <div class="card card-compact" title="Weighted-average beta of your holdings vs the S&P 500. >1 = amplifies market moves, <1 = dampens them.">
+          <div class="text-xs text-soft" style="text-transform:uppercase; letter-spacing:0.06em;">Portfolio beta</div>
+          <div class="mono" style="font-size:1.35rem; font-weight:500; margin-top:0.15rem;">
+            ${beta !== null && beta !== undefined ? beta.toFixed(2) : '—'}
+          </div>
+          <div class="text-xs text-soft">${betaHint}</div>
+        </div>
+        <div class="card card-compact" title="Herfindahl index on position weights. Higher = more concentrated. <0.15 diversified, 0.15–0.30 moderate, >0.30 concentrated.">
+          <div class="text-xs text-soft" style="text-transform:uppercase; letter-spacing:0.06em;">Concentration</div>
+          <div style="font-size:1.2rem; font-weight:500; margin-top:0.15rem; color:${concColor}; text-transform:capitalize;">
+            ${rp.concentration.level}
+          </div>
+          <div class="text-xs text-soft">HHI ${rp.concentration_hhi.toFixed(2)} · ${escapeHtml(rp.concentration.message)}</div>
+        </div>
+        <div class="card card-compact" title="Largest single-position weight. High values mean one stock dominates your portfolio's fate.">
+          <div class="text-xs text-soft" style="text-transform:uppercase; letter-spacing:0.06em;">Top position</div>
+          <div style="font-size:1.2rem; font-weight:500; margin-top:0.15rem;">${topLine}</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-xs text-soft mb-1" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500;">Sector exposure</div>
+        ${sectorBars || '<div class="text-sm text-muted">No sector data available.</div>'}
+        ${coverageNote}
+      </div>
+    </div>
+  `;
+}
+
 async function renderPortfolio(main) {
   const p = await api('/portfolio');
   main.innerHTML = `
@@ -291,6 +365,8 @@ async function renderPortfolio(main) {
         <div class="text-xs">${fmtPct(p.total_pnl_pct)}</div>
       </div>
     </div>
+
+    ${renderRiskProfile(p.risk_profile)}
 
     <div class="card">
       ${p.holdings.length === 0 ? `<div class="text-sm text-muted">No holdings yet.</div>` : `
