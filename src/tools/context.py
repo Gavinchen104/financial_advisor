@@ -31,6 +31,30 @@ def _pct_change_7d(ticker: str) -> dict[str, Any]:
         return {"ticker": ticker, "error": "fetch failed"}
 
 
+def _valuation_row(ticker: str, name: str | None = None, is_target: bool = False) -> dict[str, Any]:
+    """Fetch valuation multiples for a single ticker. Returns one row of the peer table."""
+    row: dict[str, Any] = {
+        "ticker": ticker,
+        "name": name or ticker,
+        "is_target": is_target,
+        "market_cap": None,
+        "trailing_pe": None,
+        "forward_pe": None,
+        "ev_to_ebitda": None,
+        "revenue_growth_yoy": None,
+    }
+    try:
+        info = yf.Ticker(ticker).info
+        row["market_cap"] = info.get("marketCap")
+        row["trailing_pe"] = info.get("trailingPE")
+        row["forward_pe"] = info.get("forwardPE")
+        row["ev_to_ebitda"] = info.get("enterpriseToEbitda")
+        row["revenue_growth_yoy"] = info.get("revenueGrowth")
+    except Exception:
+        pass
+    return row
+
+
 def get_knowledge_context(ticker: str) -> dict[str, Any]:
     """
     Returns a structured knowledge-graph context block for the given ticker:
@@ -93,6 +117,19 @@ def get_knowledge_context(ticker: str) -> dict[str, Any]:
     enriched_suppliers   = enrich_with_price(chain["suppliers"][:4],   supplier_tickers)
     enriched_customers   = enrich_with_price(chain["customers"][:4],   customer_tickers)
 
+    # Peer valuation — target + top 3 competitors in parallel
+    peer_rows: list[dict[str, Any]] = []
+    peer_fetch: list[tuple[str, str | None, bool]] = [(ticker, node.get("name"), True)]
+    for comp in enriched_competitors[:3]:
+        peer_fetch.append((comp["ticker"], comp["name"], False))
+    if peer_fetch:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(peer_fetch)) as ex:
+            futures = [ex.submit(_valuation_row, t, n, is_t) for t, n, is_t in peer_fetch]
+            for fut in concurrent.futures.as_completed(futures):
+                peer_rows.append(fut.result())
+        # preserve target-first ordering
+        peer_rows.sort(key=lambda r: (not r["is_target"], r["ticker"]))
+
     # Macro factors with live current values
     enriched_macro = []
     for e in macro_edges[:5]:
@@ -118,5 +155,6 @@ def get_knowledge_context(ticker: str) -> dict[str, Any]:
         "key_suppliers": enriched_suppliers,
         "key_customers": enriched_customers,
         "macro_factors": enriched_macro,
+        "peer_valuation": peer_rows,
         "source_url": f"https://finance.yahoo.com/quote/{ticker}",
     }

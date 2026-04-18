@@ -498,6 +498,11 @@ async function renderTicker(main, rawTicker) {
           <div class="card-subtitle">Competitors, suppliers, customers, and macro factors with 7-day moves. Click any node to pivot.</div>
           <div class="graph-container" id="graph"></div>
         </div>
+        <div class="card mb-3">
+          <h3 class="card-title">Peer valuation</h3>
+          <div class="card-subtitle">${ticker} vs top competitors — how expensive is the stock relative to peers?</div>
+          <div id="peer-valuation"><div class="loading"><span class="spinner"></span>Loading peers…</div></div>
+        </div>
         <div class="card">
           <h3 class="card-title">Relationships</h3>
           <div id="context-tables" class="mt-2"><div class="loading"><span class="spinner"></span>Loading context…</div></div>
@@ -536,6 +541,8 @@ async function loadContext(ticker) {
       return;
     }
     drawGraph(ctx);
+    const peerEl = document.getElementById('peer-valuation');
+    if (peerEl) peerEl.innerHTML = renderPeerValuation(ctx.peer_valuation);
     document.getElementById('context-tables').innerHTML =
       renderCompareTable('Competitors', ctx.competitors)
       + renderCompareTable('Key suppliers', ctx.key_suppliers)
@@ -560,6 +567,80 @@ async function loadBrief(ticker) {
     meta.textContent = '';
     if (chip) chip.innerHTML = '';
   }
+}
+
+function fmtMarketCap(v) {
+  if (v === null || v === undefined) return '<span class="pct-flat">—</span>';
+  const abs = Math.abs(v);
+  if (abs >= 1e12) return `<span class="mono">$${(v / 1e12).toFixed(2)}T</span>`;
+  if (abs >= 1e9)  return `<span class="mono">$${(v / 1e9).toFixed(1)}B</span>`;
+  if (abs >= 1e6)  return `<span class="mono">$${(v / 1e6).toFixed(1)}M</span>`;
+  return `<span class="mono">$${v.toLocaleString()}</span>`;
+}
+
+function fmtRatio(v, digits = 1) {
+  if (v === null || v === undefined || !isFinite(v)) return '<span class="pct-flat">—</span>';
+  return `<span class="mono">${v.toFixed(digits)}</span>`;
+}
+
+function renderPeerValuation(rows) {
+  if (!rows || rows.length === 0) {
+    return '<div class="text-sm text-muted">No peer data available for this ticker.</div>';
+  }
+  // Compute medians across non-target rows for relative shading
+  const peers = rows.filter(r => !r.is_target);
+  const medians = {};
+  ['trailing_pe', 'forward_pe', 'ev_to_ebitda', 'revenue_growth_yoy'].forEach(k => {
+    const vals = peers.map(r => r[k]).filter(v => v !== null && v !== undefined && isFinite(v)).sort((a, b) => a - b);
+    medians[k] = vals.length ? vals[Math.floor(vals.length / 2)] : null;
+  });
+
+  // Cheaper P/E or EV/EBITDA vs peer median = green (relatively cheap); higher = red.
+  // Higher revenue growth vs peer median = green; lower = red.
+  function cellCmp(v, med, higherBetter) {
+    if (v === null || v === undefined || med === null) return '';
+    const better = higherBetter ? v > med : v < med;
+    if (Math.abs(v - med) / Math.max(Math.abs(med), 1e-9) < 0.05) return '';
+    return better ? 'pct-up' : 'pct-down';
+  }
+
+  const rowsHtml = rows.map(r => {
+    const shade = r.is_target ? 'style="background: var(--accent-soft);"' : '';
+    const growthPct = (r.revenue_growth_yoy !== null && r.revenue_growth_yoy !== undefined)
+      ? fmtPct(r.revenue_growth_yoy * 100)
+      : '<span class="pct-flat">—</span>';
+    const peClass = cellCmp(r.trailing_pe, medians.trailing_pe, false);
+    const fpeClass = cellCmp(r.forward_pe, medians.forward_pe, false);
+    const evClass = cellCmp(r.ev_to_ebitda, medians.ev_to_ebitda, false);
+    return `
+      <tr ${shade}>
+        <td class="mono" style="font-weight:${r.is_target ? '700' : '500'};">
+          ${r.ticker}${r.is_target ? ' <span class="text-xs text-soft">(this stock)</span>' : ''}
+        </td>
+        <td class="num">${fmtMarketCap(r.market_cap)}</td>
+        <td class="num"><span class="${peClass} mono">${r.trailing_pe ? r.trailing_pe.toFixed(1) : '—'}</span></td>
+        <td class="num"><span class="${fpeClass} mono">${r.forward_pe ? r.forward_pe.toFixed(1) : '—'}</span></td>
+        <td class="num"><span class="${evClass} mono">${r.ev_to_ebitda ? r.ev_to_ebitda.toFixed(1) : '—'}</span></td>
+        <td class="num">${growthPct}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th class="num">Market cap</th>
+          <th class="num" title="Price ÷ trailing 12-month earnings. Lower = cheaper vs peers.">P/E</th>
+          <th class="num" title="Price ÷ next 12-month expected earnings.">Fwd P/E</th>
+          <th class="num" title="Enterprise value ÷ EBITDA. Capital-structure-neutral valuation.">EV/EBITDA</th>
+          <th class="num" title="Year-over-year revenue growth.">Rev growth</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <div class="text-xs text-soft mt-1">Green = cheaper valuation or faster growth vs peer median. Red = more expensive or slower. Hover column headers for definitions.</div>
+  `;
 }
 
 function renderEarningsChip(r) {
