@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stockify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockify_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-stockify}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockify}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   app:
     build: .
     ports:
@@ -6,15 +21,19 @@ services:
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/app.db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://stockify:stockify_dev@db:5432/stockify}
       ENV: ${ENV:-prod}
     volumes:
-      # Persist the SQLite DB and logs across container restarts
-      - ./data:/app/data
       - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  pgdata:

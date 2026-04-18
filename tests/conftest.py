@@ -24,20 +24,36 @@ os.environ["ENV"] = "dev"
 
 # Now safe to import
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
+
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
 
 from src.db import Base, SessionLocal, engine  # noqa: E402
 from src import models  # noqa: E402,F401 — registers models on Base
+
+_ALEMBIC_CFG = Config(str(Path(__file__).parent.parent / "alembic.ini"))
 
 
 # ---------- fixtures ----------
 @pytest.fixture(autouse=True)
 def _reset_db():
-    """Drop and recreate all tables before each test. Ensures isolation."""
+    """Drop and recreate all tables before each test. Ensures isolation.
+
+    We skip real alembic migrations in tests — too slow per-test — and instead
+    create tables via Base.metadata.create_all, then stamp alembic to head so
+    init_db()'s `alembic upgrade head` is a no-op.
+    """
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    command.stamp(_ALEMBIC_CFG, "head")
     yield
     Base.metadata.drop_all(bind=engine)
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
 
 
 @pytest.fixture

@@ -24,18 +24,36 @@ cp .env.example .env
 uv run python scripts/build_knowledge_graph.py
 ```
 
+## Database
+
+Alembic is authoritative for schema. By default `DATABASE_URL` is SQLite at `./data/app.db`; set it to a Postgres URL in prod (Render, Fly, etc.):
+
+```
+postgresql+psycopg://user:pass@host:5432/dbname
+```
+
+Render hands out `postgres://...` — `src/db.py` normalizes that to the SQLAlchemy 2.x + psycopg v3 form automatically.
+
+Migrations run on app startup via `init_db()` in `src/api.py`. To run them manually:
+
+```bash
+uv run alembic upgrade head            # apply pending
+uv run alembic revision --autogenerate -m "describe change"  # after editing models.py
+uv run alembic downgrade -1            # roll back one
+```
+
 ## Run
 
-**Local:**
+**Local (SQLite):**
 ```bash
 uv run uvicorn src.api:app --reload
 # Open http://localhost:8000
 ```
 
-**Docker:**
+**Docker (Postgres + app):**
 ```bash
 docker compose up --build
-# Open http://localhost:8000
+# App on http://localhost:8000, Postgres on :5432
 ```
 
 Sign up from the landing page, then you're in the app. Dashboard is at `/app`.

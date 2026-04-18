@@ -17,6 +17,8 @@ dependencies = [
     "slowapi>=0.1.9",
     "loguru>=0.7.0",
     "pydantic[email]>=2.0.0",
+    "alembic>=1.18.4",
+    "psycopg[binary]>=3.3.3",
 ]
 
 [dependency-groups]
