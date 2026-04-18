@@ -21,6 +21,7 @@ from .tools.price import (
     get_technical_levels,
 )
 from .tools.context import get_knowledge_context
+from .tools.risk import get_risk_metrics
 from .tools.brief_writer import parse_brief
 
 load_dotenv()
@@ -46,10 +47,11 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
         filing = get_latest_filing(ticker)
         price = {"error": f"No price data found for {ticker}. It may be an invalid or delisted ticker."}
         earnings = {}
+        risk = {}
         enhanced_sections = ""
         gemini_tools = []
     else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
             f_news = executor.submit(get_recent_news, ticker, 7, True)
             f_filing = executor.submit(get_latest_filing, ticker)
             f_price = executor.submit(get_price_action, ticker)
@@ -61,6 +63,7 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
             f_valuation = executor.submit(get_valuation_context, ticker)
             f_technical = executor.submit(get_technical_levels, ticker)
             f_knowledge = executor.submit(get_knowledge_context, ticker)
+            f_risk = executor.submit(get_risk_metrics, ticker)
             news = f_news.result()
             filing = f_filing.result()
             price = f_price.result()
@@ -72,6 +75,7 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
             valuation = f_valuation.result()
             technical = f_technical.result()
             knowledge = f_knowledge.result()
+            risk = f_risk.result()
 
         enhanced_sections = f"""
 ## Earnings & Fundamentals
@@ -97,6 +101,9 @@ def run_agent(ticker: str, experience_level: str = "first_year") -> dict:
 
 ## Knowledge Graph Context (Related Companies & Macro Factors)
 {json.dumps(knowledge, indent=2)}
+
+## Risk Metrics (1-year)
+{json.dumps(risk, indent=2)}
 """
         gemini_tools = [types.Tool(google_search=types.GoogleSearch())]
 
@@ -131,4 +138,11 @@ Now write the brief using the required format."""
     result["days_since_last_earnings"] = earnings.get("days_since_last_earnings")
     result["next_earnings_date"] = earnings.get("next_earnings_date")
     result["last_earnings_date"] = earnings.get("last_earnings_date")
+    result["risk_metrics"] = {
+        "beta_1y": risk.get("beta_1y"),
+        "volatility_30d_annualized_pct": risk.get("volatility_30d_annualized_pct"),
+        "volatility_label": risk.get("volatility_label"),
+        "max_drawdown_1y_pct": risk.get("max_drawdown_1y_pct"),
+        "sharpe_1y": risk.get("sharpe_1y"),
+    }
     return result

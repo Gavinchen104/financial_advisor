@@ -57,6 +57,14 @@ class BriefRequest(BaseModel):
     experience_level: str = "first_year"
 
 
+class RiskMetrics(BaseModel):
+    beta_1y: float | None = None
+    volatility_30d_annualized_pct: float | None = None
+    volatility_label: str | None = None
+    max_drawdown_1y_pct: float | None = None
+    sharpe_1y: float | None = None
+
+
 class BriefResponse(BaseModel):
     ticker: str
     what_happened: str
@@ -71,6 +79,7 @@ class BriefResponse(BaseModel):
     days_since_last_earnings: int | None = None
     next_earnings_date: str | None = None
     last_earnings_date: str | None = None
+    risk_metrics: RiskMetrics = RiskMetrics()
 
 
 # ---------- helpers ----------

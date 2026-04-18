@@ -480,6 +480,8 @@ async function renderTicker(main, rawTicker) {
       </div>
     </div>
 
+    <div id="risk-stats" class="mb-3"></div>
+
     <div class="grid grid-2">
       <div>
         <div class="card mb-3">
@@ -557,16 +559,78 @@ async function loadBrief(ticker) {
   const meta = document.getElementById('brief-meta');
   const body = document.getElementById('brief-body');
   const chip = document.getElementById('earnings-chip');
+  const risk = document.getElementById('risk-stats');
   try {
     const r = await api('/brief', { method: 'POST', body: JSON.stringify({ ticker, experience_level: 'first_year' }) });
     meta.textContent = r.cached ? 'Served from cache (<4h old). Click Refresh for live generation.' : 'Generated just now.';
     body.innerHTML = marked.parse(r.full_brief);
     if (chip) chip.innerHTML = renderEarningsChip(r);
+    if (risk) risk.innerHTML = renderRiskStats(r.risk_metrics);
   } catch (err) {
     body.innerHTML = `<div class="banner banner-error">${escapeHtml(err.message)}</div>`;
     meta.textContent = '';
     if (chip) chip.innerHTML = '';
+    if (risk) risk.innerHTML = '';
   }
+}
+
+function renderRiskStats(rm) {
+  if (!rm) return '';
+  const hasAny = ['beta_1y','volatility_30d_annualized_pct','max_drawdown_1y_pct','sharpe_1y']
+    .some(k => rm[k] !== null && rm[k] !== undefined);
+  if (!hasAny) return '';
+
+  const beta = rm.beta_1y;
+  let betaHint = '—';
+  if (beta !== null && beta !== undefined) {
+    if (beta > 1.3) betaHint = 'more volatile than market';
+    else if (beta < 0.7) betaHint = 'less volatile than market';
+    else betaHint = 'moves with the market';
+  }
+
+  const vol = rm.volatility_30d_annualized_pct;
+  const volLabel = rm.volatility_label || '—';
+  const dd = rm.max_drawdown_1y_pct;
+  const sharpe = rm.sharpe_1y;
+  const sharpeHint = sharpe === null || sharpe === undefined ? '—'
+    : sharpe > 1 ? 'strong risk-adjusted return'
+    : sharpe > 0 ? 'positive risk-adjusted return'
+    : 'negative risk-adjusted return';
+
+  const cell = (label, value, hint, tooltip) => `
+    <div class="card card-compact" title="${tooltip}" style="flex:1;">
+      <div class="text-xs text-soft" style="text-transform:uppercase; letter-spacing:0.06em;">${label}</div>
+      <div class="mono" style="font-size:1.35rem; font-weight:500; margin-top:0.15rem;">${value}</div>
+      <div class="text-xs text-soft" style="margin-top:0.1rem;">${hint}</div>
+    </div>`;
+
+  return `
+    <div class="flex gap-1" style="flex-wrap:wrap;">
+      ${cell(
+        'Beta (1y)',
+        beta !== null && beta !== undefined ? beta.toFixed(2) : '—',
+        betaHint,
+        'Beta measures how much the stock moves when the S&P 500 moves 1%. >1 = more volatile than market, <1 = less.'
+      )}
+      ${cell(
+        'Volatility (30d)',
+        vol !== null && vol !== undefined ? vol.toFixed(1) + '%' : '—',
+        volLabel,
+        '30-day annualized volatility — how much the stock typically swings in a year based on recent daily moves.'
+      )}
+      ${cell(
+        'Max drawdown (1y)',
+        dd !== null && dd !== undefined ? dd.toFixed(1) + '%' : '—',
+        'worst peak-to-trough over 1y',
+        'The largest peak-to-trough decline over the last year. A sense of worst-case pain.'
+      )}
+      ${cell(
+        'Sharpe (1y)',
+        sharpe !== null && sharpe !== undefined ? sharpe.toFixed(2) : '—',
+        sharpeHint,
+        'Sharpe ratio: return per unit of risk, assuming a 4.5% risk-free rate. >1 is generally considered good.'
+      )}
+    </div>`;
 }
 
 function fmtMarketCap(v) {
