@@ -58,3 +58,13 @@ def generate_brief(req: BriefRequest):
         raise HTTPException(status_code=500, detail=result["error"])
     _log(ticker, req.experience_level)
     return BriefResponse(**result)
+
+
+@app.get("/context/{ticker}")
+def get_context(ticker: str):
+    """Knowledge graph context: competitors, suppliers, customers, macro factors
+    with live 7-day performance. Used by the frontend to render a relationships
+    panel alongside the brief."""
+    ticker = _validate_ticker(ticker)
+    from .tools.context import get_knowledge_context
+    return get_knowledge_context(ticker)
