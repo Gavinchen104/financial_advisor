@@ -1,0 +1,30 @@
+# Production overlay. Use with the base compose file:
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d
+#
+# Runs Caddy in front of the app, terminates TLS, auto-renews certs.
+
+services:
+  app:
+    # Don't expose 8000 on the host — Caddy reaches it over the internal network
+    ports: []
+    environment:
+      ENV: prod
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set in .env (e.g. your-ip.nip.io)}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:

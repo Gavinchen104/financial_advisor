@@ -41,7 +41,7 @@ BRIEF_CACHE_TTL_HOURS = 4
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/hour"])
 
-app = FastAPI(title="DinoDigest", version="0.2.0")
+app = FastAPI(title="Stockify", version="0.2.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth_router)

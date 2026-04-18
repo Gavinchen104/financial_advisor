@@ -1,4 +1,4 @@
-# DinoDigest
+# Stockify
 
 Plain-English stock briefs for first-year investors. Enter a US ticker, get:
 
@@ -102,4 +102,4 @@ Public:
 
 ## Disclaimer
 
-DinoDigest is educational information, not investment advice.
+Stockify is educational information, not investment advice.

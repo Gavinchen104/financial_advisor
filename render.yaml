@@ -1,0 +1,30 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Creates one free Docker web service from ./Dockerfile.
+# Required env vars (set these in the Render dashboard, not here):
+#   GEMINI_API_KEY   — your Google Gemini key
+#   DATABASE_URL     — optional; leave blank for ephemeral SQLite, or set to a
+#                      Neon/Supabase postgres URL like postgresql+psycopg://...
+#
+# Notes on the free plan:
+#   • Service sleeps after 15 min idle; first wake adds ~30s cold-start
+#   • No persistent disks on free — SQLite resets on every deploy
+#   • 512 MB RAM, 0.1 CPU — enough for this app at light traffic
+
+services:
+  - type: web
+    name: stockify
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENV
+        value: prod
+      - key: SECRET_KEY
+        generateValue: true          # Render generates a strong random value once
+      - key: GEMINI_API_KEY
+        sync: false                   # marked "must be set in dashboard"
+      - key: DATABASE_URL
+        sync: false                   # optional; leave blank for SQLite

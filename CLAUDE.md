@@ -1,10 +1,10 @@
-# CLAUDE.md — DinoDigest
+# CLAUDE.md — Stockify
 
 This file gives Claude Code the context it needs to work productively in this repo. Keep it short, keep it honest, update it when things change.
 
 ## What we're building
 
-**DinoDigest** — a plain-English stock brief platform for first-year investors. Given a ticker, the brief answers three questions:
+**Stockify** — a plain-English stock brief platform for first-year investors. Given a ticker, the brief answers three questions:
 
 1. What happened recently (factual)
 2. Why the price moved (cited to primary sources)
@@ -139,7 +139,7 @@ Define technical terms inline in parentheses.
 ## Disclaimers (non-negotiable, auto-appended to every brief)
 
 ```
-This is educational information, not investment advice. DinoDigest does not
+This is educational information, not investment advice. Stockify does not
 recommend buying or selling any security. Do your own research and consider
 consulting a licensed financial advisor.
 ```

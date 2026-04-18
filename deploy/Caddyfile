@@ -1,0 +1,29 @@
+# Caddy reverse proxy with automatic HTTPS.
+#
+# $DOMAIN is substituted at container start (see docker-compose.prod.yml).
+# Caddy fetches a real Let's Encrypt cert on first request — no cert wrangling.
+#
+# If $DOMAIN is a nip.io hostname like 1-2-3-4.nip.io, it still gets a valid
+# cert via HTTP-01 challenge. No DNS setup required beyond Oracle's public IP.
+
+{$DOMAIN} {
+    encode gzip zstd
+
+    # Forward the real client IP so rate limiter keys correctly
+    reverse_proxy app:8000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+    }
+
+    # Cache the static bundle aggressively — it's content-addressed by filename
+    @static path /static/*
+    header @static Cache-Control "public, max-age=3600"
+
+    # Baseline security headers
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Strict-Transport-Security "max-age=31536000"
+        -Server
+    }
+}

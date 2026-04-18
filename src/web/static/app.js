@@ -1,4 +1,4 @@
-// DinoDigest SPA — vanilla JS router + page renderers + D3 graph viz.
+// Stockify SPA — vanilla JS router + page renderers + D3 graph viz.
 
 // ---------------------- Theme ----------------------
 const savedTheme = localStorage.getItem('theme') || 'light';

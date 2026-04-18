@@ -1,5 +1,5 @@
 DISCLAIMER = (
-    "This is educational information, not investment advice. Financial Advisor does not "
+    "This is educational information, not investment advice. Stockify does not "
     "recommend buying or selling any security. Do your own research and consider "
     "consulting a licensed financial advisor."
 )
