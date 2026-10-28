@@ -2,7 +2,7 @@
 
 | Package | Status | PR | Date | Notes / run ids / cost |
 |---|---|---|---|---|
-| P2-A Prep | ☑ done | — (committed on `feat/rag`) | 2026-10-28 | 106 SQLite tests + 6 pgvector smoke tests passed locally (pg run against the compose db). CI `pytest-pg` on the push: see Actions for `feat/rag`. |
+| P2-A Prep | ☑ done | — (committed on `feat/rag`) | 2026-10-28 | 106 SQLite tests + 6 pgvector smoke tests passed locally (pg run against the compose db). CI run [40752515475](https://github.com/Gavinchen104/financial_advisor/actions/runs/40752515475) on `2802aa5`: success (lint-and-import, pytest, pytest-pg). |
 | P2-B KG → Postgres | ☐ | | | |
 | P2-C Filings ingestion | ☐ | | | |
 | P2-D Filings → KG | ☐ | | | |
