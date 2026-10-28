@@ -152,11 +152,16 @@ self._in_by_relation: dict[str, dict[str, list[Edge]]] = ...  # for reverse look
 **Query API.** Four methods:
 
 - `get_competitors(ticker)` — direct index lookup
-- `get_suppliers(ticker)` — reverse scan over `supplies_to` edges (O(E) but E ≈ 4000 and results are cached)
+- `get_suppliers(ticker)` — lookup in the reverse (incoming) adjacency index
 - `get_customers(ticker)` — forward lookup from the `supplies_to` adjacency
 - `get_macro_sensitivities(ticker)` — direct lookup, returns macro factors with weights
 
-The `get_suppliers` O(E) scan is a known wart. Acceptable at current scale; trivial to fix by building a reverse adjacency at load time if it ever shows up in profiling.
+Every relationship method returns one row per counterparty: when a curated and a GICS edge both describe the same pair, the heavier (curated) one wins, and both stay in the graph with their own `provenance`.
+
+Two traversal primitives sit on top of the same indexes for the RAG feature (P2-G):
+
+- `neighbors(node, types, k)` — edges touching a node in either direction, heaviest first, each with its provenance.
+- `paths(a, b, max_hops=2)` — simple paths between two companies ignoring edge direction, ranked by hop count, then by provenance (filing-sourced before curated before GICS), then by the product of weights. Each step keeps the full edge, so an answer can cite it.
 
 ---
 
@@ -191,11 +196,24 @@ The same graph feeds all three. One source of truth, three surfaces.
 - **No ownership edges.** We don't model "Berkshire owns 5% of Apple". Could matter for a few names; out of scope for now.
 - **Coarse macro mapping.** Sector defaults are blunt — a software company and a hardware company both map to "IT sector macro exposure" even though they behave differently to rates.
 - **Ticker normalization is fragile.** Anything beyond dots-to-dashes (class shares, foreign listings, renames) would need code changes.
-- **`get_suppliers` is O(E).** Acceptable at 4000 edges, not at 40000.
+- **Weights are hand-set numbers, not measured ones.** The filing-extracted edges (P2-D) will carry quotes but still inherit a heuristic weight.
 
 ---
 
-## 9. The mental model
+## 9. Postgres store with provenance (RAG, P2-B)
+
+The RAG feature needs the graph to grow with facts from filings, so the same graph also lives in Postgres:
+
+- `kg_nodes(id, type, name, props)` — `company` nodes keyed by ticker (GICS fields, `sp500`, `aliases` such as `TSMC` or `Apple` in `props`), `macro:<FACTOR>` nodes, and later `filing:<accession>` and `org:<slug>` nodes for counterparties outside the S&P 500.
+- `kg_edges(src, dst, type, weight, source, accession, evidence, confidence, props)` — `source` says where an edge came from: `curated` (`_relationships.py`, `_macro.py`), `gics` (shared sub-industry) or `filing` (extracted from a 10-K, with the verbatim quote as `evidence` and the `accession`). Macro `direction` / `override` live in `props`.
+
+`scripts/seed_kg.py` upserts the compiled JSON into these tables idempotently (edge ids are stable across runs; curated/gics edges that left the JSON are pruned; nodes are never deleted because filing edges hang off them). `KnowledgeGraph.from_db()` reads the tables back into the same class, so `get_graph()` can prefer the DB graph and fall back to the JSON file when Postgres is absent or not seeded. A `@pytest.mark.pg` parity test asserts that both backends answer every query identically.
+
+The one semantic change versus the raw JSON: the five `major_customer` edges ("Apple is Qualcomm's largest customer") are read as reversed `supplies_to` edges, the canonical form the filing extractor also produces.
+
+---
+
+## 10. The mental model
 
 > A curated, versioned, hand-weighted directed graph over S&P 500 + externals and macro factors — built offline from three sources (GICS taxonomy, expert-authored edges, sector/company macro overrides), loaded once into process memory with adjacency indexes, and joined with live yfinance data at request time to highlight *which relationships are moving this week*.
 

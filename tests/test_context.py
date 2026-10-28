@@ -95,6 +95,19 @@ def test_get_knowledge_context_competitors_enriched_with_pct_change(mock_price_f
     assert {"ticker", "name", "relationship", "weight", "pct_change_7d", "current_price"} <= c.keys()
 
 
+def test_get_knowledge_context_reports_edge_provenance(mock_price_fetch):
+    """P2-B: every relationship row says where the edge comes from and why."""
+    ctx = context_module.get_knowledge_context("NVDA")
+    assert ctx["graph_backend"] == "json"  # tests run on SQLite → no DB graph
+    for row in ctx["competitors"] + ctx["key_suppliers"] + ctx["key_customers"]:
+        assert row["source"] in {"curated", "gics"}
+        assert row["evidence"]
+        assert "accession" in row  # None until filing-derived edges exist (P2-D)
+    for m in ctx["macro_factors"]:
+        assert m["source"] == "curated" and m["evidence"] == m["reason"]
+    assert any(r["source"] == "curated" for r in ctx["key_suppliers"])  # TSM → NVDA is hand-curated
+
+
 def test_get_knowledge_context_unknown_ticker_returns_error(mock_price_fetch):
     """A ticker outside the S&P 500 + curated externals returns a structured
     error dict — the agent relies on this to write a graceful brief."""

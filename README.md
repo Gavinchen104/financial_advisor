@@ -38,7 +38,7 @@ Plus: accounts, a watchlist, a portfolio tracker with live P&L, weekly-move aler
 - **Frontend:** vanilla JS SPA (no build step), Tailwind-free custom CSS tokens, D3 v7 for the graph, `marked` for markdown
 - **Rate limiting:** slowapi (per-IP anon, per-user authed)
 - **Logging:** loguru (pretty in dev, structured JSON in prod)
-- **Tests:** pytest + freezegun + FastAPI TestClient, 106 tests covering auth, brief cache TTL, knowledge graph, API endpoints, parser and the RAG config / LLM wrapper, plus 6 Postgres + pgvector smoke tests (`pytest -m pg`)
+- **Tests:** pytest + freezegun + FastAPI TestClient, 149 tests covering auth, brief cache TTL, knowledge graph (canonical edges, traversal, backend fallback), API endpoints, parser and the RAG config / LLM wrapper, plus 16 Postgres + pgvector tests (`pytest -m pg`: schema smoke, graph seeding, DB ↔ JSON parity)
 - **Deploy:** Docker + Render (Postgres + web service)
 
 ---
@@ -96,6 +96,16 @@ docker compose up --build
 
 Brings up Postgres (`pgvector/pgvector:pg16` — pgvector is required by the RAG tables) + the web service. App on `:8000`, Postgres on `:5432`.
 
+With a Postgres `DATABASE_URL`, seed the knowledge graph into `kg_nodes` / `kg_edges` (with provenance per edge) so the app serves the DB-backed graph instead of the JSON file:
+
+```bash
+uv run alembic upgrade head
+uv run python scripts/seed_kg.py --dry-run     # counts only
+uv run python scripts/seed_kg.py               # idempotent upsert; re-run after rebuilding the JSON
+```
+
+`/context/{ticker}` falls back to the JSON graph whenever Postgres is absent or not seeded, and reports which one it used in `graph_backend`.
+
 ---
 
 ## Database & migrations
@@ -121,10 +131,11 @@ uv run alembic downgrade -1                              # roll back one
 ## Testing
 
 ```bash
-uv run pytest -q                                         # 106 tests on SQLite, ~10s (pg tests skip)
+uv run pytest -q                                         # 149 tests on SQLite, ~10s (pg tests skip)
 uv run pytest --cov=src --cov-report=term-missing        # with coverage
 
-# Postgres + pgvector smoke tests for the RAG schema (needs the compose db):
+# Postgres + pgvector tests — RAG schema smoke, knowledge-graph seeding and
+# DB ↔ JSON parity (needs the compose db; each test rolls back its own transaction):
 docker compose up -d db
 PG_TEST_URL=postgresql+psycopg://stockify:stockify_dev@localhost:5432/stockify uv run pytest -m pg
 ```
@@ -144,13 +155,14 @@ src/
   db.py             SQLAlchemy engine, session, Base, DATABASE_URL normalization
   models.py         User, WatchlistItem, Holding, BriefCache
   logging_config.py loguru setup (dev pretty / prod JSON)
-  rag/              RAG / Ask feature (in progress) — config, Claude wrapper; see docs/PROJECT2-PLAN.md
+  rag/              RAG / Ask feature (in progress) — config, Claude wrapper, kg_store (graph ↔ Postgres); see docs/PROJECT2-PLAN.md
   tools/            news, filings, price, context, brief_writer
   prompts/          system prompt — tone rules, output format, safety
-  knowledge_graph/  compiled S&P 500 graph, curated edges, macro factors
+  knowledge_graph/  KnowledgeGraph (JSON or Postgres backend, traversal), compiled S&P 500 graph, curated edges, macro factors
   web/              index.html (landing + sample brief + demo graph), app.html (SPA shell), static/ (CSS + JS + D3)
 scripts/
   build_knowledge_graph.py        (re)compile the graph into sp500_graph.json
+  seed_kg.py                      load that JSON into Postgres kg_nodes / kg_edges with provenance (idempotent)
   refresh_news_cache.py           daily cron — pre-warm hot-list news
 migrations/                       Alembic schema history (dialect-aware: SQLite in tests, Postgres + pgvector in prod)
 docs/                             knowledge_graph.md, PROJECT2-PLAN.md (RAG plan), PROGRESS.md (RAG status)

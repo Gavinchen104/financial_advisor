@@ -65,6 +65,7 @@ financial_advisor/
 │           └── app.js              # SPA routes, auth, watchlist, graph viz
 ├── scripts/
 │   ├── build_knowledge_graph.py    # rebuilds sp500_graph.json
+│   ├── seed_kg.py                  # loads that JSON into Postgres kg_nodes/kg_edges with provenance (idempotent)
 │   └── refresh_news_cache.py       # daily pre-warm of hot-list news
 ├── .github/workflows/
 │   ├── ci.yml                      # lint, import check, pytest
@@ -106,6 +107,8 @@ RAG / Ask adds `ANTHROPIC_API_KEY`, `SEC_USER_AGENT`, `ASK_MODEL_DEFAULT`, `ASK_
 At request time, `get_knowledge_context(ticker)` pulls top relationships and enriches each with live 7-day `pct_change` from yfinance. The frontend renders a visual D3 force-directed graph using the same data.
 
 Rebuild with: `uv run python scripts/build_knowledge_graph.py` (also runs weekly via GitHub Actions).
+
+Two backends, one class (`graph.KnowledgeGraph`): `get_graph()` serves the Postgres graph (`kg_nodes`/`kg_edges`, seeded by `scripts/seed_kg.py` via `src/rag/kg_store.py`) when `DATABASE_URL` is Postgres and the tables are seeded, and falls back to the JSON file otherwise. Every edge carries `provenance` (`curated` | `gics` | `filing`) and `evidence`; `/context` exposes them as `source` / `evidence`. `neighbors()` and `paths()` are the traversal primitives for RAG graph retrieval. `major_customer` edges in the JSON are read as reversed `supplies_to`.
 
 ## Agent design
 

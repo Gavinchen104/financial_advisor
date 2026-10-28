@@ -137,3 +137,11 @@ def pg_conn(pg_engine):
             yield conn
         finally:
             trans.rollback()
+
+
+@pytest.fixture
+def pg_session(pg_conn):
+    """ORM session on that same rolled-back transaction. `session.commit()` only
+    releases a savepoint, so nothing a test writes survives it."""
+    with Session(bind=pg_conn, join_transaction_mode="create_savepoint") as session:
+        yield session

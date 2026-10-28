@@ -108,6 +108,11 @@ def get_knowledge_context(ticker: str) -> dict[str, Any]:
                 "relationship": edge["type"],
                 "relationship_label": edge.get("label", ""),
                 "weight": edge.get("weight"),
+                # provenance: where the edge comes from (curated | gics | filing) and the
+                # rationale or verbatim filing quote behind it
+                "source": edge.get("provenance"),
+                "evidence": edge.get("evidence"),
+                "accession": edge.get("accession"),
                 "pct_change_7d": live.get("pct_change_7d"),
                 "current_price": live.get("current_price"),
             })
@@ -142,6 +147,8 @@ def get_knowledge_context(ticker: str) -> dict[str, Any]:
             "direction": e.get("direction"),
             "weight": e.get("weight"),
             "reason": e.get("label", ""),
+            "source": e.get("provenance"),
+            "evidence": e.get("evidence"),
             "current_value": live.get("current_price"),
             "pct_change_7d": live.get("pct_change_7d"),
         })
@@ -157,4 +164,5 @@ def get_knowledge_context(ticker: str) -> dict[str, Any]:
         "macro_factors": enriched_macro,
         "peer_valuation": peer_rows,
         "source_url": f"https://finance.yahoo.com/quote/{ticker}",
+        "graph_backend": graph.backend,  # "db" (Postgres, with provenance) or "json"
     }

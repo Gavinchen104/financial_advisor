@@ -30,7 +30,7 @@ jobs:
           from src.tools.brief_writer import parse_brief
           from src.agent import run_agent
           from src.api import app
-          from src.rag import config, llm
+          from src.rag import config, llm, kg_store
           print('All imports OK')
           "
         env:

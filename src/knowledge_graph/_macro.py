@@ -253,6 +253,6 @@ COMPANY_MACRO_OVERRIDES: dict[str, list[dict]] = {
               "reason": "NextEra's Florida Power & Light burns significant gas for generation"},
              {"factor": "US_10Y_YIELD", "direction": "inverse", "strength": 0.9,
               "reason": "NEE is viewed as a bond proxy; rising rates hurt its premium valuation"}],
-    "BRK.B":[{"factor": "US_10Y_YIELD", "direction": "positive", "strength": 0.7,
+    "BRK-B":[{"factor": "US_10Y_YIELD", "direction": "positive", "strength": 0.7,
               "reason": "Berkshire benefits via GEICO (float investment income) and bank holdings (BAC, AXP) when rates rise"}],
 }
