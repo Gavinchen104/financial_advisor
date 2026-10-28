@@ -1,3 +1,4 @@
+import os
 import warnings
 from typing import Any
 
@@ -8,7 +9,10 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 EDGAR_BASE = "https://data.sec.gov"
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
-HEADERS = {"User-Agent": "Financial Advisor MVP contact@example.com"}
+# SEC's fair-access policy requires a descriptive User-Agent with contact info.
+# Set SEC_USER_AGENT in .env ("Your Name you@example.com"). The fallback keeps
+# dev and tests working, but use a real one before fetching at any volume.
+HEADERS = {"User-Agent": os.environ.get("SEC_USER_AGENT") or "Financial Advisor MVP contact@example.com"}
 
 _cik_map: dict[str, str] = {}
 

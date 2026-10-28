@@ -43,6 +43,7 @@ financial_advisor/
 │   ├── db.py                       # SQLAlchemy engine, session, Base
 │   ├── models.py                   # User, WatchlistItem, Holding, BriefCache
 │   ├── logging_config.py           # loguru setup (structured JSON logs)
+│   ├── rag/                        # RAG / Ask feature — docs/PROJECT2-PLAN.md (config, llm, schema, ...)
 │   ├── tools/
 │   │   ├── news.py                 # recent news + daily cache
 │   │   ├── filings.py              # latest SEC 10-K/10-Q/8-K
@@ -69,6 +70,11 @@ financial_advisor/
 │   ├── ci.yml                      # lint, import check, pytest
 │   ├── refresh-knowledge-graph.yml # weekly cron
 │   └── refresh-news-cache.yml      # daily cron
+├── docs/
+│   ├── knowledge_graph.md          # graph internals
+│   ├── PROJECT2-PLAN.md            # RAG / Ask plan — source of truth for src/rag/
+│   └── PROGRESS.md                 # RAG work-package status, spend log, decisions
+├── migrations/                     # Alembic history (dialect-aware: SQLite in tests, Postgres+pgvector in prod)
 ├── data/
 │   └── app.db                      # SQLite (gitignored)
 └── logs/
@@ -79,6 +85,7 @@ financial_advisor/
 
 - **Python 3.11+**, FastAPI, uv for dep management
 - **LLM:** Google Gemini via `google-genai` — `gemini-2.5-flash` with `GoogleSearch` tool
+- **Ask / RAG:** Anthropic Claude via `anthropic` (Haiku 5.5 anonymous, Sonnet 5.5 signed-in); `gemini-embedding-001` 768-d embeddings; vectors + KG in Postgres with pgvector ≥ 0.7
 - **DB:** SQLite via SQLAlchemy 2.x. Easy to swap to Postgres later (change `DATABASE_URL`).
 - **Auth:** email + password, bcrypt via passlib, JWT in httpOnly cookie
 - **Rate limiting:** slowapi (per-IP for unauth, per-user for auth)
@@ -86,6 +93,7 @@ financial_advisor/
 - **Frontend:** vanilla JS SPA (no build step), Tailwind via CDN, D3 for graph viz, marked for markdown
 
 Env vars required: `GEMINI_API_KEY`, `SECRET_KEY` (JWT signing), `DATABASE_URL` (defaults to SQLite).
+RAG / Ask adds `ANTHROPIC_API_KEY`, `SEC_USER_AGENT`, `ASK_MODEL_DEFAULT`, `ASK_MODEL_AUTHED`, `ASK_DAILY_USD_CAP`, and needs a Postgres + pgvector `DATABASE_URL`.
 
 ## Knowledge graph
 
@@ -187,3 +195,22 @@ uv run pytest -q
 - SEC EDGAR has a 10 req/sec limit — fine for our volume
 - Knowledge graph only covers S&P 500 + curated externals; tickers outside get a partial brief
 - SQLite is single-writer; good for ~100 concurrent users, swap to Postgres if that becomes a constraint
+
+## RAG / Ask feature (docs/PROJECT2-PLAN.md is the source of truth)
+- New code lives in src/rag/. The Gemini brief pipeline (agent.py, prompts/system.md) is untouched
+  except the SEC User-Agent fix in tools/filings.py.
+- All Claude calls go through src/rag/llm.py (logging, cost, retries, budget). All embedding calls go
+  through src/rag/embed.py. No direct SDK calls elsewhere.
+- Embeddings: gemini-embedding-001, output_dimensionality=768, task_type RETRIEVAL_DOCUMENT for chunks
+  and RETRIEVAL_QUERY for questions, L2-normalize every vector (required below 3072 dims). Never mix
+  embedding models in one index.
+- Postgres + pgvector is required for RAG. SQLite stays for the existing tests; RAG tests are marked
+  @pytest.mark.pg and run against the docker-compose Postgres (and the CI Postgres service).
+- Any command that spends money supports --dry-run (token count + $ estimate) and --max-usd.
+- Never tune prompts or retrieval on the eval TEST split. README numbers come only from committed
+  scorecards in evals/qa/results/.
+- Citations (search_result blocks) and structured outputs can't share one request. Answers are
+  cited text; structured outputs are only for extraction, intent and judging.
+- In tool loops, append response.content unchanged (thinking blocks must round-trip).
+- SEC: send SEC_USER_AGENT, ≤5 requests/second, cache raw downloads, never refetch an accession.
+- Keep Stockify's policy: never buy/sell/hold/price-target language, in answers too.

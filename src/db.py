@@ -8,21 +8,31 @@ import os
 from pathlib import Path
 from typing import Generator
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+# Load .env here so the alembic CLI and scripts see the same DATABASE_URL as the
+# app. Never overrides variables already in the environment (tests set theirs first).
+load_dotenv()
 
 _DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "app.db"
 _DEFAULT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{_DEFAULT_DB_PATH}")
 
-# Render (and some other hosts) hand out URLs as `postgres://...`, but
-# SQLAlchemy 2.x only accepts `postgresql://`. We also pin the driver to
-# psycopg v3 since that's what we depend on.
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgres://"):]
-elif DATABASE_URL.startswith("postgresql://") and "+psycopg" not in DATABASE_URL:
-    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgresql://"):]
+
+def normalize_database_url(url: str) -> str:
+    """Render (and some other hosts) hand out URLs as `postgres://...`, but
+    SQLAlchemy 2.x only accepts `postgresql://`. We also pin the driver to
+    psycopg v3 since that's what we depend on."""
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://"):]
+    if url.startswith("postgresql://") and "+psycopg" not in url:
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+DATABASE_URL = normalize_database_url(os.environ.get("DATABASE_URL", f"sqlite:///{_DEFAULT_DB_PATH}"))
 
 _engine_kwargs = {"echo": False, "future": True}
 if DATABASE_URL.startswith("sqlite"):

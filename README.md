@@ -32,12 +32,13 @@ Plus: accounts, a watchlist, a portfolio tracker with live P&L, weekly-move aler
 
 - **Backend:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Alembic migrations
 - **LLM:** Google Gemini 2.5 Flash via `google-genai`, with `GoogleSearch` tool enabled for primary-source verification
-- **Database:** SQLite for local dev, Postgres (psycopg v3) in production
+- **Ask / RAG (in progress — [docs/PROJECT2-PLAN.md](docs/PROJECT2-PLAN.md)):** Anthropic Claude via `anthropic`, `gemini-embedding-001` embeddings, Postgres + pgvector
+- **Database:** SQLite for local dev, Postgres (psycopg v3) in production — the RAG tables need pgvector ≥ 0.7
 - **Auth:** email + password, bcrypt, JWT in an httpOnly cookie
 - **Frontend:** vanilla JS SPA (no build step), Tailwind-free custom CSS tokens, D3 v7 for the graph, `marked` for markdown
 - **Rate limiting:** slowapi (per-IP anon, per-user authed)
 - **Logging:** loguru (pretty in dev, structured JSON in prod)
-- **Tests:** pytest + freezegun + FastAPI TestClient, 67 tests covering auth, brief cache TTL, knowledge graph, API endpoints, and parser
+- **Tests:** pytest + freezegun + FastAPI TestClient, 106 tests covering auth, brief cache TTL, knowledge graph, API endpoints, parser and the RAG config / LLM wrapper, plus 6 Postgres + pgvector smoke tests (`pytest -m pg`)
 - **Deploy:** Docker + Render (Postgres + web service)
 
 ---
@@ -93,7 +94,7 @@ Open <http://localhost:8000>, sign up, and you're in the app.
 docker compose up --build
 ```
 
-Brings up Postgres + the web service. App on `:8000`, Postgres on `:5432`.
+Brings up Postgres (`pgvector/pgvector:pg16` — pgvector is required by the RAG tables) + the web service. App on `:8000`, Postgres on `:5432`.
 
 ---
 
@@ -120,11 +121,15 @@ uv run alembic downgrade -1                              # roll back one
 ## Testing
 
 ```bash
-uv run pytest -q                                         # 67 tests, ~10s
+uv run pytest -q                                         # 106 tests on SQLite, ~10s (pg tests skip)
 uv run pytest --cov=src --cov-report=term-missing        # with coverage
+
+# Postgres + pgvector smoke tests for the RAG schema (needs the compose db):
+docker compose up -d db
+PG_TEST_URL=postgresql+psycopg://stockify:stockify_dev@localhost:5432/stockify uv run pytest -m pg
 ```
 
-CI runs lint + import check + pytest on every push.
+CI runs lint + import check + pytest (SQLite) + `pytest -m pg` against a `pgvector/pgvector:pg16` service on every push.
 
 ---
 
@@ -139,6 +144,7 @@ src/
   db.py             SQLAlchemy engine, session, Base, DATABASE_URL normalization
   models.py         User, WatchlistItem, Holding, BriefCache
   logging_config.py loguru setup (dev pretty / prod JSON)
+  rag/              RAG / Ask feature (in progress) — config, Claude wrapper; see docs/PROJECT2-PLAN.md
   tools/            news, filings, price, context, brief_writer
   prompts/          system prompt — tone rules, output format, safety
   knowledge_graph/  compiled S&P 500 graph, curated edges, macro factors
@@ -146,10 +152,11 @@ src/
 scripts/
   build_knowledge_graph.py        (re)compile the graph into sp500_graph.json
   refresh_news_cache.py           daily cron — pre-warm hot-list news
-migrations/                       Alembic schema history
+migrations/                       Alembic schema history (dialect-aware: SQLite in tests, Postgres + pgvector in prod)
+docs/                             knowledge_graph.md, PROJECT2-PLAN.md (RAG plan), PROGRESS.md (RAG status)
 tests/                            pytest suite + fixtures
 .github/workflows/
-  ci.yml                          lint, import, pytest
+  ci.yml                          lint, import, pytest, pytest -m pg (pgvector service)
   refresh-knowledge-graph.yml     weekly cron
   refresh-news-cache.yml          daily cron
 ```
@@ -199,7 +206,10 @@ For graph internals, see [docs/knowledge_graph.md](docs/knowledge_graph.md).
    - `SECRET_KEY` — any long random string
    - `DATABASE_URL` — the **Internal Database URL** from the Postgres instance (same region)
    - `ENV=prod`
+   - `ANTHROPIC_API_KEY`, `SEC_USER_AGENT` — for the Ask / RAG feature (docs/PROJECT2-PLAN.md)
 4. Deploy. `init_db()` runs `alembic upgrade head` on boot, so the schema is created on first deploy and migrated on every subsequent deploy.
+
+The RAG migration runs `CREATE EXTENSION IF NOT EXISTS vector` and needs pgvector ≥ 0.7 on the production Postgres, otherwise boot fails. Check with `SELECT extversion FROM pg_extension WHERE extname = 'vector';`.
 
 ---
 

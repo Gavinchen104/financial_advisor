@@ -19,6 +19,11 @@ dependencies = [
     "pydantic[email]>=2.0.0",
     "alembic>=1.18.4",
     "psycopg[binary]>=3.3.3",
+    "anthropic>=2.3.0",
+    "pgvector>=0.5.1",
+    "numpy>=2.4.4",
+    "rapidfuzz>=3.14.6",
+    "tenacity>=9.1.4",
 ]
 
 [dependency-groups]
@@ -26,11 +31,18 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "freezegun>=1.5.0",
+    "pymupdf>=2.0",
+    "pytest-mock>=3.17.0",
+    "respx>=0.23.1",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+markers = [
+    "pg: needs Postgres + pgvector (set PG_TEST_URL); run with `pytest -m pg`",
+    "live: calls paid external APIs; skipped in CI",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
