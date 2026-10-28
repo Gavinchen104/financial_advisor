@@ -3,7 +3,7 @@
 | Package | Status | PR | Date | Notes / run ids / cost |
 |---|---|---|---|---|
 | P2-A Prep | ☑ done | — (committed on `feat/rag`) | 2026-10-28 | 106 SQLite tests + 6 pgvector smoke tests passed locally (pg run against the compose db). CI run [40752515475](https://github.com/Gavinchen104/financial_advisor/actions/runs/40752515475) on `2802aa5`: success (lint-and-import, pytest, pytest-pg). |
-| P2-B KG → Postgres | ☑ done | — (committed on `feat/rag`) | 2026-10-28 | 149 SQLite tests pass locally. CI run [40757444110](https://github.com/Gavinchen104/financial_advisor/actions/runs/40757444110) on `0e0c2e1`: success (lint-and-import, pytest, pytest-pg with the 16 pg tests: 6 smoke + 10 KG seed/parity). Seed dry-run: 524 nodes (514 company, 10 macro), 3,811 edges (2,303 curated, 1,508 gics), 1 edge skipped (`BRK.B` typo, fixed in `_macro.py`, lands on the next JSON rebuild). |
+| P2-B KG → Postgres | ☑ done | — (committed on `feat/rag`) | 2026-10-28 | 149 SQLite tests pass locally. CI run [40757444110](https://github.com/Gavinchen104/financial_advisor/actions/runs/40757444110) on `0e0c2e1`: success (lint-and-import, pytest, pytest-pg with the 16 pg tests: 6 smoke + 10 KG seed/parity). Seeded the compose DB for real on 2026-10-28 (run from the session via Desktop Commander with Gavin's permission): 524 nodes (514 company, 10 macro), 3,811 edges (2,303 curated, 1,508 gics), 1 edge skipped (`BRK.B` typo, fixed in `_macro.py`, lands on the next JSON rebuild). 16/16 pg tests pass locally against the seeded DB after scoping the P2-A smoke test's cascade assertion to its own rows. |
 | P2-C Filings ingestion | ☐ | | | |
 | P2-D Filings → KG | ☐ | | | |
 | P2-E Market facts | ☐ | | | |

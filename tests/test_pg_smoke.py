@@ -123,9 +123,10 @@ def test_kg_node_jsonb_props_and_edge_provenance(pg_conn):
     assert edge[0] == "org:acme" and edge[2] == "filing" and edge[3] == ACCESSION
     assert "widgets" in edge[4]
 
-    # Deleting a node cascades to its edges.
+    # Deleting a node cascades to its edges. Scoped to this test's rows: the compose
+    # database is also the dev DB and may already hold the seeded graph.
     pg_conn.execute(text("DELETE FROM kg_nodes WHERE id = 'org:acme'"))
-    assert pg_conn.execute(text("SELECT count(*) FROM kg_edges")).scalar_one() == 0
+    assert pg_conn.execute(text("SELECT count(*) FROM kg_edges WHERE dst = 'TEST'")).scalar_one() == 0
 
 
 def test_ask_log_uses_native_array_and_jsonb(pg_conn):
