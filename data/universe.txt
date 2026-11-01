@@ -1,0 +1,54 @@
+# Live ingestion universe: the 50 largest S&P 500 companies by market cap.
+# Hand-maintained (2026-10-29); P2-E market snapshots will let this be derived
+# from kg_facts. One ticker per line, SEC spelling (BRK-B, not BRK.B); '#' starts
+# a comment. Used by `scripts/ingest_filings.py --universe` and the weekly job.
+NVDA
+MSFT
+AAPL
+GOOGL
+AMZN
+META
+AVGO
+TSLA
+BRK-B
+LLY
+WMT
+JPM
+V
+ORCL
+MA
+XOM
+NFLX
+JNJ
+COST
+PLTR
+ABBV
+PG
+HD
+BAC
+AMD
+CVX
+KO
+GE
+UNH
+CSCO
+TMUS
+MS
+WFC
+PM
+IBM
+ABT
+GS
+CRM
+MCD
+AXP
+LIN
+PEP
+DIS
+INTU
+MRK
+ISRG
+CAT
+RTX
+T
+VZ

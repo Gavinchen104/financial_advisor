@@ -1,5 +1,6 @@
 .env
-data/
+data/*
+!data/universe.txt
 logs/
 __pycache__/
 *.pyc

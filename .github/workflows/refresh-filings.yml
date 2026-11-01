@@ -1,0 +1,63 @@
+name: Refresh filings
+
+# Weekly ingestion of the live universe (data/universe.txt): the latest 10-K and
+# two 10-Qs per ticker into the production Postgres (docs/PROJECT2-PLAN.md P2-C).
+# Accessions already stored are skipped, so a normal week costs cents.
+#
+# Secrets (set once the production database exists — P2-J):
+#   DATABASE_URL     postgresql+psycopg://… with pgvector >= 0.7, migrated to head
+#   GEMINI_API_KEY   embeddings (gemini-embedding-001)
+#   SEC_USER_AGENT   "Your Name you@example.com" (EDGAR fair-access policy)
+# Until they are set the job logs a notice and exits green.
+
+on:
+  schedule:
+    # Weekly: Sunday 08:00 UTC, after the knowledge-graph rebuild at 06:00
+    - cron: '0 8 * * 0'
+  workflow_dispatch:  # allow manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  ingest-filings:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      ENV: prod
+    steps:
+      - name: Check secrets
+        id: secrets
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$GEMINI_API_KEY" ]; then
+            echo "DATABASE_URL and/or GEMINI_API_KEY secrets are not set — skipping. Set them once the production Postgres exists (docs/PROJECT2-PLAN.md P2-J)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - name: Install uv
+        if: steps.secrets.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: uv sync
+
+      - name: Ingest the live universe (new filings only)
+        if: steps.secrets.outputs.ready == 'true'
+        run: uv run python scripts/ingest_filings.py --universe --max-usd 5 --summary results/ingest_summary.md
+
+      - name: Upload ingestion summary
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-summary
+          path: results/ingest_summary.md

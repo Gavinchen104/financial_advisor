@@ -66,10 +66,12 @@ financial_advisor/
 ├── scripts/
 │   ├── build_knowledge_graph.py    # rebuilds sp500_graph.json
 │   ├── seed_kg.py                  # loads that JSON into Postgres kg_nodes/kg_edges with provenance (idempotent)
+│   ├── ingest_filings.py           # EDGAR 10-K/10-Q → sections → chunks → embeddings → Postgres (--dry-run / --max-usd)
 │   └── refresh_news_cache.py       # daily pre-warm of hot-list news
 ├── .github/workflows/
-│   ├── ci.yml                      # lint, import check, pytest
+│   ├── ci.yml                      # lint, import check, pytest, pytest -m pg
 │   ├── refresh-knowledge-graph.yml # weekly cron
+│   ├── refresh-filings.yml         # weekly cron — new filings into prod Postgres (skips until secrets exist)
 │   └── refresh-news-cache.yml      # daily cron
 ├── docs/
 │   ├── knowledge_graph.md          # graph internals

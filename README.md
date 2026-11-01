@@ -38,7 +38,7 @@ Plus: accounts, a watchlist, a portfolio tracker with live P&L, weekly-move aler
 - **Frontend:** vanilla JS SPA (no build step), Tailwind-free custom CSS tokens, D3 v7 for the graph, `marked` for markdown
 - **Rate limiting:** slowapi (per-IP anon, per-user authed)
 - **Logging:** loguru (pretty in dev, structured JSON in prod)
-- **Tests:** pytest + freezegun + FastAPI TestClient, 149 tests covering auth, brief cache TTL, knowledge graph (canonical edges, traversal, backend fallback), API endpoints, parser and the RAG config / LLM wrapper, plus 16 Postgres + pgvector tests (`pytest -m pg`: schema smoke, graph seeding, DB ↔ JSON parity)
+- **Tests:** pytest + freezegun + FastAPI TestClient + respx, 225 tests covering auth, brief cache TTL, knowledge graph (canonical edges, traversal, backend fallback), API endpoints, parser, the RAG config / LLM wrapper, EDGAR client, iXBRL normalizer + section splitter (Item, title-only and statements-rescue strategies), chunker and embedding wrapper (all offline), plus 21 Postgres + pgvector tests (`pytest -m pg`: schema smoke, graph seeding, DB ↔ JSON parity, filings ingestion)
 - **Deploy:** Docker + Render (Postgres + web service)
 
 ---
@@ -106,6 +106,18 @@ uv run python scripts/seed_kg.py               # idempotent upsert; re-run after
 
 `/context/{ticker}` falls back to the JSON graph whenever Postgres is absent or not seeded, and reports which one it used in `graph_backend`.
 
+### Filings ingestion (RAG)
+
+SEC 10-K / 10-Q filings are cleaned (hidden iXBRL removed, tables as rows), split into Items 1 / 1A / 7 / 7A / 8 (10-Q: Part I Items 1 / 2), chunked at ~450 tokens with 15% overlap, embedded with `gemini-embedding-001` (768-d) and stored in `filing_chunks` with an HNSW index; each filing also becomes a node in the knowledge graph. Accessions already stored are skipped, raw documents are cached under `data/raw/edgar/`.
+
+```bash
+uv run python scripts/ingest_filings.py --tickers NVDA,AAPL --dry-run   # fetch + chunk, print token and $ estimate; no DB, no money
+uv run python scripts/ingest_filings.py --tickers NVDA,AAPL --max-usd 1  # embed + store (needs GEMINI_API_KEY)
+uv run python scripts/ingest_filings.py --universe --max-usd 5           # the 50 tickers in data/universe.txt
+```
+
+Every run writes `results/ingest_summary.md` (filings, chunks, section-split rate, estimated tokens and cost). The weekly `refresh-filings.yml` job does the same for new filings once the production database secrets exist.
+
 ---
 
 ## Database & migrations
@@ -131,7 +143,7 @@ uv run alembic downgrade -1                              # roll back one
 ## Testing
 
 ```bash
-uv run pytest -q                                         # 149 tests on SQLite, ~10s (pg tests skip)
+uv run pytest -q                                         # 225 tests on SQLite, ~10s (pg tests skip)
 uv run pytest --cov=src --cov-report=term-missing        # with coverage
 
 # Postgres + pgvector tests — RAG schema smoke, knowledge-graph seeding and
@@ -155,7 +167,8 @@ src/
   db.py             SQLAlchemy engine, session, Base, DATABASE_URL normalization
   models.py         User, WatchlistItem, Holding, BriefCache
   logging_config.py loguru setup (dev pretty / prod JSON)
-  rag/              RAG / Ask feature (in progress) — config, Claude wrapper, kg_store (graph ↔ Postgres); see docs/PROJECT2-PLAN.md
+  rag/              RAG / Ask feature (in progress) — config, Claude wrapper, kg_store (graph ↔ Postgres),
+                    edgar + html_text + chunk + embed + ingest (filings pipeline); see docs/PROJECT2-PLAN.md
   tools/            news, filings, price, context, brief_writer
   prompts/          system prompt — tone rules, output format, safety
   knowledge_graph/  KnowledgeGraph (JSON or Postgres backend, traversal), compiled S&P 500 graph, curated edges, macro factors
@@ -163,6 +176,7 @@ src/
 scripts/
   build_knowledge_graph.py        (re)compile the graph into sp500_graph.json
   seed_kg.py                      load that JSON into Postgres kg_nodes / kg_edges with provenance (idempotent)
+  ingest_filings.py               EDGAR 10-K/10-Q → sections → chunks → embeddings → Postgres (--dry-run, --max-usd)
   refresh_news_cache.py           daily cron — pre-warm hot-list news
 migrations/                       Alembic schema history (dialect-aware: SQLite in tests, Postgres + pgvector in prod)
 docs/                             knowledge_graph.md, PROJECT2-PLAN.md (RAG plan), PROGRESS.md (RAG status)
@@ -170,6 +184,7 @@ tests/                            pytest suite + fixtures
 .github/workflows/
   ci.yml                          lint, import, pytest, pytest -m pg (pgvector service)
   refresh-knowledge-graph.yml     weekly cron
+  refresh-filings.yml             weekly cron — ingest new filings (skips until prod DB secrets exist)
   refresh-news-cache.yml          daily cron
 ```
 

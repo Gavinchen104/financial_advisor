@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
 
 # ---------- model ids ----------
 EXTRACT_MODEL = "claude-haiku-5-5"  # relation extraction (Batch, structured output)
@@ -20,6 +23,24 @@ EMBED_MAX_INPUT_TOKENS = 2048  # per text; the chunker keeps chunks well under t
 
 SEC_MAX_RPS = 5  # EDGAR allows 10/s; we stay at half
 _DEFAULT_SEC_USER_AGENT = "Financial Advisor MVP contact@example.com"
+
+# ---------- filings ingestion (P2-C) ----------
+DATA_DIR = ROOT / "data"
+EDGAR_RAW_DIR = DATA_DIR / "raw" / "edgar"  # cached primary documents, gitignored
+UNIVERSE_PATH = DATA_DIR / "universe.txt"  # committed: the live-ingestion ticker list
+RESULTS_DIR = ROOT / "results"  # ingest_summary.md, kg_ingest.md
+DEFAULT_FORM_COUNTS = {"10-K": 1, "10-Q": 2}  # latest filings to ingest per ticker
+EMBED_BATCH_SIZE = 50  # texts per embed_content call (conservative)
+CHARS_PER_TOKEN = 4  # the estimate used for chunk sizing, --dry-run and --max-usd
+CHUNK_TARGET_TOKENS = 450
+CHUNK_OVERLAP = 0.15
+# A primary document with less text than this is a wrapper (Wells Fargo, IBM): the
+# report body is a sibling document in the filing (Exhibit 13 or a second .htm).
+THIN_TEXT_CHARS = {"10-K": 150_000, "10-Q": 60_000}
+
+
+def gemini_api_key() -> str | None:
+    return os.environ.get("GEMINI_API_KEY") or None
 
 
 def ask_model_default() -> str:
